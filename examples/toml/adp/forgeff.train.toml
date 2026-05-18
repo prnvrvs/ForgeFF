@@ -1,0 +1,26 @@
+[common]
+seed = 42
+
+[configurations]
+# Replace this with your actual training configuration list.
+training = ["../data/training.cfg"]
+
+[potentials]
+initial = "adp/initial.toml"
+final = "adp/final.toml"
+
+[loss]
+energy_weight = 1.0
+forces_weight = 0.1
+stress_weight = 0.01
+
+[[steps]]
+method = "minimize"
+optimized = ["parameters"]
+
+[steps.kwargs]
+method = "L-BFGS-B"
+tol = 1.0e-6
+
+[steps.kwargs.options]
+maxiter = 200

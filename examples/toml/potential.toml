@@ -1,0 +1,36 @@
+[potential]
+family = "analytical"
+form = "double_morse"
+cutoff = 8.0
+initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
+
+# To switch to a user-defined analytic expression, replace the block above with:
+#
+# [potential]
+# family = "analytical"
+# backend = "numpy"
+# expression = "A*(exp(-2*a*(r-r0)) - 2*exp(-a*(r-r0))) + B/r**12"
+# parameter_names = ["A", "a", "r0", "B"]
+# cutoff = 8.0
+
+# Tabulated EAM/ADP examples:
+#
+# [potential]
+# family = "eam"
+# form = "alloy"
+#
+# [species]
+# order = ["Al"]
+#
+# [grids]
+# r = [0.1, 0.2, 0.3]
+# rho = [0.0, 1.0, 2.0]
+#
+# [pair.AlAl]
+# values = [0.1, 0.2, 0.3]
+#
+# [density.Al]
+# values = [0.4, 0.5, 0.6]
+#
+# [embedding.Al]
+# values = [0.7, 0.8, 0.9]

@@ -1,0 +1,77 @@
+[build-system]
+build-backend = "mesonpy"
+requires = [
+    "meson-python>=0.18.0",
+    "setuptools-scm>=8",
+    "numpy>=2.0",
+]
+
+[project]
+name = "ForgeFF"
+description = "Semi-empirical potential fitting in Python"
+dependencies = [
+    "numpy>=1.23",  # This supports python 3.11.
+    "ase",
+    "scipy",
+    "sympy",
+]
+requires-python = ">=3.11"  # tomllib
+readme = "README.md"
+authors = [
+    {name = "Pranav Kumar"},
+]
+classifiers = [
+    'Development Status :: 4 - Beta',
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+    'Programming Language :: C',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Software Development',
+    'Topic :: Scientific/Engineering',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: POSIX',
+    'Operating System :: Unix',
+    'Operating System :: MacOS',
+]
+license = 'MIT'
+license-files = ['LICENSE']
+dynamic = ["version"]
+
+[project.optional-dependencies]
+mpi = ["mpi4py"]
+numba = ["numba"]
+jax = ["jax"]
+test = [
+  "pytest",
+  "pytest-xdist",
+]
+doc = [
+  "sphinx",
+  "sphinx_book_theme",
+  "sphinx-gallery",
+]
+
+[project.scripts]
+forgeff = "forgeff.cli:main"
+
+[project.urls]
+homepage = "https://github.com/prnvrvs/ForgeFF"
+documentation = "https://github.com/prnvrvs/ForgeFF"
+source = "https://github.com/prnvrvs/ForgeFF"
+download = "https://pypi.org/project/ForgeFF/#files"
+tracker = "https://github.com/prnvrvs/ForgeFF/issues"
+
+[tool.setuptools.packages]
+find = {}
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+
+[tool.ruff.lint]
+preview = true  # necessary to activate many pycodestyle rules
+select = ["ALL"]
+ignore = ["CPY001"]

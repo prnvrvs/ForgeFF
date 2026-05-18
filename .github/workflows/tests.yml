@@ -1,0 +1,39 @@
+name: Tests
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+        mpi: [false, true]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up MPI
+        if: matrix.mpi
+        uses: mpi4py/setup-mpi@v1
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install meson-python setuptools_scm
+          python -m pip install numpy">=2,<3"  # numpy 2.x.x for build
+          python -m pip install numba jax
+          if [ "${{ matrix.mpi }}" = "true" ]; then
+            python -m pip install --no-build-isolation -e ".[test,mpi]"
+          else
+            python -m pip install --no-build-isolation -e ".[test]"
+          fi
+      - name: Run pytest
+        run: |
+          python -m pytest -v --durations=0 --durations-min=0.01 -n 4

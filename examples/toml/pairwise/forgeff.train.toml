@@ -1,0 +1,26 @@
+[common]
+seed = 42
+
+[configurations]
+# Replace this with your actual training configuration list.
+training = ["../data/training.cfg"]
+
+[potentials]
+initial = "pairwise/built_in.toml"
+final = "pairwise/final.toml"
+
+[loss]
+energy_weight = 1.0
+forces_weight = 0.05
+stress_weight = 0.0
+
+[[steps]]
+method = "minimize"
+optimized = ["parameters"]
+
+[steps.kwargs]
+method = "L-BFGS-B"
+tol = 1.0e-6
+
+[steps.kwargs.options]
+maxiter = 200

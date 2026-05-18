@@ -1,0 +1,253 @@
+:root {
+    --ff-ink: #171717;
+    --ff-ink-soft: #4b5563;
+    --ff-accent: #a16207;
+    --ff-accent-2: #7c2d12;
+    --ff-surface: #ffffff;
+    --ff-surface-alt: #faf7f2;
+    --ff-line: rgba(23, 23, 23, 0.12);
+    --ff-shadow: 0 16px 48px rgba(23, 23, 23, 0.12);
+}
+
+body {
+    background: #ffffff;
+    color: var(--ff-ink);
+}
+
+.bd-content {
+    line-height: 1.7;
+}
+
+.ff-hero {
+    padding: 2rem 0 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--ff-line);
+}
+
+.ff-hero__icon {
+    display: block;
+    width: 88px;
+    height: 88px;
+    margin-bottom: 1rem;
+    border-radius: 20px;
+    box-shadow: var(--ff-shadow);
+}
+
+a.navbar-brand.logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.5rem;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid rgba(23, 23, 23, 0.08);
+    box-shadow: 0 10px 26px rgba(23, 23, 23, 0.08);
+}
+
+.navbar-brand.logo .logo__image {
+    display: block;
+    background: #ffffff;
+    border-radius: 10px;
+}
+
+.ff-hero__eyebrow {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    margin-bottom: 0.9rem;
+    border-radius: 999px;
+    background: rgba(161, 98, 7, 0.11);
+    color: var(--ff-accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ff-hero h1 {
+    margin: 0 0 0.75rem;
+    font-size: clamp(2.3rem, 4vw, 4rem);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    color: var(--ff-ink);
+    max-width: 12ch;
+}
+
+.ff-hero p {
+    max-width: 62ch;
+    font-size: 1.05rem;
+    color: var(--ff-ink-soft);
+}
+
+.ff-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.2rem;
+}
+
+.ff-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.7rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--ff-line);
+    background: var(--ff-surface);
+    color: var(--ff-ink);
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(20, 33, 61, 0.04);
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.ff-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--ff-shadow);
+    border-color: rgba(15, 118, 110, 0.35);
+    text-decoration: none;
+}
+
+.ff-btn--primary {
+    background: #ffffff;
+    border-color: rgba(161, 98, 7, 0.35);
+    color: var(--ff-ink);
+}
+
+.ff-btn--primary:hover {
+    color: var(--ff-ink);
+    border-color: rgba(161, 98, 7, 0.55);
+}
+
+.ff-card-grid,
+.ff-feature-strip {
+    margin: 1.25rem 0 2rem;
+}
+
+.ff-card,
+.ff-feature-card {
+    border: 1px solid var(--ff-line);
+    border-radius: 18px;
+    background: var(--ff-surface);
+    box-shadow: 0 1px 2px rgba(20, 33, 61, 0.03);
+}
+
+.ff-card {
+    padding: 0.75rem 0.25rem;
+}
+
+.ff-feature-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.ff-feature-card {
+    display: grid;
+    gap: 0.4rem;
+    padding: 1rem 1.1rem;
+    text-decoration: none;
+    color: var(--ff-ink);
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.ff-feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ff-shadow);
+    border-color: rgba(161, 98, 7, 0.32);
+    text-decoration: none;
+}
+
+.ff-feature-card__eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ff-accent);
+    font-weight: 700;
+}
+
+.ff-feature-card strong {
+    font-size: 1rem;
+}
+
+.ff-feature-card span {
+    color: var(--ff-ink-soft);
+}
+
+.ff-link-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.ff-link-grid li {
+    margin: 0;
+}
+
+.ff-link-grid a {
+    display: block;
+    padding: 0.75rem 0.9rem;
+    border-radius: 12px;
+    background: var(--ff-surface-alt);
+    border: 1px solid transparent;
+    text-decoration: none;
+}
+
+.ff-link-grid a:hover {
+    background: #ffffff;
+    border-color: rgba(161, 98, 7, 0.22);
+}
+
+.ff-example-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0 2rem;
+}
+
+.ff-example-button {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid rgba(23, 23, 23, 0.12);
+    box-shadow: 0 1px 2px rgba(20, 33, 61, 0.03);
+    text-decoration: none;
+    color: var(--ff-ink);
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.ff-example-button strong {
+    font-size: 1.05rem;
+}
+
+.ff-example-button span {
+    color: var(--ff-ink-soft);
+    font-size: 0.95rem;
+}
+
+.ff-example-button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ff-shadow);
+    border-color: rgba(161, 98, 7, 0.32);
+    text-decoration: none;
+}
+
+/* hide download buttons in example headers
+ * https://sphinx-gallery.github.io/stable/advanced.html#hide-the-download-buttons-in-the-example-headers
+ */
+div.sphx-glr-download-link-note {
+    display: none;
+}
+
+/* Keep the examples landing pages button-only.
+ * Sphinx-Gallery injects thumbnail blocks into gallery index pages during build.
+ */
+.sphx-glr-thumbnails,
+.sphx-glr-thumbcontainer,
+.sphx-glr-tag-list,
+.sphx-glr-footer-gallery,
+.sphx-glr-signature {
+    display: none !important;
+}

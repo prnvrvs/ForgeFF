@@ -1,0 +1,311 @@
+"""Module for MLIP-style structure formats."""
+
+from typing import TextIO
+
+import numpy as np
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.data import chemical_symbols
+from ase.utils import reader, string2index, writer
+
+
+def _is_float(s: str) -> bool:
+    try:
+        float(s)
+    except ValueError:
+        return False
+    return True
+
+
+@reader
+def read_cfg(
+    fd: TextIO,
+    index: int = -1,
+    species: list[int] | list[str] | None = None,
+) -> Atoms | list[Atoms]:
+    """Read images from a `.cfg` file.
+
+    Parameters
+    ----------
+    fd : TextIO
+        TextIO object.
+    index : int
+        Index of images.
+    species : list[int] | list[str], optional
+        List defining types of chemical symbols. For example,
+        [46, 1] and ['Pd', 'H'] assign Pd for type 0 and H for type 1. If None,
+        dummy symbols 'X', 'H', 'He', etc. are assigned for types 0, 1, 2, etc.
+
+    Returns
+    -------
+    Atoms | list[Atoms]
+
+    """
+    species = _convert_species(species)
+    atoms_list = []
+    for line in fd:
+        if line.startswith("BEGIN_CFG"):
+            atoms = _read_image(fd, species)
+            atoms_list.append(atoms)
+
+    if isinstance(index, str):
+        index = string2index(index)
+
+    return atoms_list[index]
+
+
+def _convert_species(species: list | None) -> list[int] | None:
+    if isinstance(species, list) and isinstance(species[0], str):
+        return [chemical_symbols.index(_) for _ in species]
+    return species  # list[int] | None
+
+
+def _read_image(file: TextIO, species: list[int] | None) -> Atoms:
+    keys_c = ["cartes_x", "cartes_y", "cartes_z"]
+    keys_d = ["direct_x", "direct_y", "direct_z"]
+    cell = None
+    stress = None
+    results = {}
+    info = {}  # added PK
+    for line in file:
+        if line.startswith("END_CFG"):
+            break
+        if line.split()[0] == "Size":
+            size = int(next(file).split()[0])
+        elif line.split()[0] in {"Supercell", "SuperCell"}:
+            cell = [[float(_) for _ in next(file).split()] for _ in range(3)]
+        elif line.split()[0] in {"AtomData:", "Atomic_data:"}:
+            atomdata = {_: [] for _ in line.split()[1:]}
+            for _ in range(size):
+                for key, value in zip(atomdata, next(file).split(), strict=True):
+                    atomdata[key].append(_parse_value(value))
+        elif line.split()[0] == "Energy":
+            energy = float(next(file).split()[0])
+            for k in ["energy", "free_energy"]:
+                results[k] = energy
+        elif line.split()[0] == "PlusStress:":
+            keys = line.split()[1:]
+            stress = [float(value) for value in next(file).split()]
+            stress = dict(zip(keys, stress, strict=True))
+        elif line.split()[0] == "Feature":
+            key, value = line.split()[1:3]
+            if key == "MV_grade":
+                results[key] = float(value)
+            elif value.isdigit():
+                info[key] = int(value)
+            elif _is_float(value):
+                info[key] = float(value)
+            else:
+                info[key] = value
+
+    if species is None:
+        numbers = atomdata["type"]
+    else:
+        numbers = [species[_] for _ in atomdata["type"]]
+
+    pbc = cell is not None
+
+    if all((_ in atomdata) for _ in keys_c):
+        positions = list(zip(*[atomdata[_] for _ in keys_c], strict=True))
+        atoms = Atoms(
+            numbers=numbers,
+            positions=positions,
+            cell=cell,
+            pbc=pbc,
+        )
+    elif all((_ in atomdata) for _ in keys_d):
+        positions = list(zip(*[atomdata[_] for _ in keys_d], strict=True))
+        atoms = Atoms(
+            numbers=numbers,
+            scaled_positions=positions,
+            cell=cell,
+            pbc=pbc,
+        )
+    else:
+        raise ValueError
+
+    for key, value in atomdata.items():
+        if key in {"id", "type"} or key in keys_c or key in keys_d:
+            continue
+        results[key] = np.array(value)
+
+    atoms.calc = SinglePointCalculator(atoms)
+    atoms.calc.results.update(results)
+    if "fx" in atomdata:
+        _set_forces(atoms, atomdata)
+    if cell is not None and stress is not None:
+        _set_stress(atoms, stress)
+    if any(k in atomdata for k in ("magmom_x", "magmom_y", "magmom_z")):
+        _set_magmoms(atoms, atomdata)
+    atoms.info = info  # added PK
+    return atoms
+
+
+def _set_forces(atoms: Atoms, atomdata: dict) -> None:
+    keys = ["fx", "fy", "fz"]
+    forces = list(zip(*[atomdata[_] for _ in keys], strict=True))
+    atoms.calc.results["forces"] = np.array(forces)
+
+
+def _set_stress(atoms: Atoms, stress: dict[str, float]) -> None:
+    voigt_order = ["xx", "yy", "zz", "yz", "xz", "xy"]
+    arr = np.array([stress[_] for _ in voigt_order])
+    atoms.calc.results["stress"] = -arr / atoms.get_volume()
+
+
+def _set_magmoms(atoms: Atoms, atomdata: dict) -> None:
+    keys = ["magmom_x", "magmom_y", "magmom_z"]
+    n = len(atoms)
+    magmoms = list(zip(*[atomdata.get(_, [0.0] * n) for _ in keys], strict=True))
+    magmoms = np.array(magmoms)
+    cols = np.where(~(magmoms == 0).all(axis=0))[0]
+    if len(cols) <= 1:
+        magmoms = magmoms[:, cols[0]] if len(cols) == 1 else np.zeros(n)
+    atoms.calc.results["magmoms"] = magmoms
+
+
+def _parse_value(value: str) -> int | float | bool:
+    if value.isdigit():
+        return int(value)
+    if value.replace(".", "").replace("-", "").isdigit():
+        return float(value)
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    raise RuntimeError(value)
+
+
+@writer
+def write_cfg(
+    fd: TextIO,
+    images: Atoms | list[Atoms],
+    species: list[int] | list[str] | None = None,
+    key_energy: str | None = None,
+) -> None:
+    """Write images into the `.cfg` format.
+
+    Parameters
+    ----------
+    fd : TextIO
+        TextIO object.
+    images : Atoms | list[Atoms]
+        _description_
+    species : list[int] | list[str], optional
+        List that defines types of chemical symbols (e.g, ['Pd', 'H'] means Pd
+        is type 0 and H type 1), by default None. If None, this list is built
+        by assigning each distinct species to an integer in the order of
+        appearance in `images`.
+    key_energy : str | None, default: None
+        Key for the energy (either "free_energy" or "energy") to be printed.
+        If :py:obj:`None`, "free_energy" is first considered, followed by "energy".
+
+    """
+    if isinstance(images, Atoms):
+        images = [images]
+
+    species = _convert_species(species)
+    if species is None:
+        species = _get_species(images)
+
+    keys_energy = ["free_energy", "energy"] if key_energy is None else [key_energy]
+
+    for atoms in images:
+        _write_image(fd, atoms, species, keys_energy)
+
+
+def _get_species(images: list[Atoms]) -> list[int]:
+    numbers = []
+    for atoms in images:
+        numbers.extend(atoms.get_atomic_numbers())
+    return sorted(set(numbers), key=numbers.index)
+
+
+def _write_image(
+    file: TextIO,
+    atoms: Atoms,
+    species: list[int],
+    keys_energy: list[str],
+) -> None:
+    if not hasattr(atoms, "calc") or atoms.calc is None:
+        atoms.calc = SinglePointCalculator(atoms)  # dummy calculator
+
+    file.write("BEGIN_CFG\n")
+    file.write(" Size\n")
+    file.write(f"{len(atoms):6d}\n")
+
+    if all(atoms.pbc):
+        _write_supercell(file, atoms)
+
+    _write_atom_data(file, atoms, species)
+
+    for key_energy in keys_energy:
+        if key_energy in atoms.calc.results:
+            energy = atoms.calc.get_property(key_energy)
+            file.write(" Energy\n")
+            file.write(f"{energy:24.12f}\n")
+            break
+
+    if "stress" in atoms.calc.results:
+        _write_stress(file, atoms)
+    for key, value in atoms.info.items():
+        fmt = ".6f" if isinstance(value, float) else ""
+        file.write(f" Feature   {key}\t{value:{fmt}}\n")
+    for key in ["MV_grade"]:
+        value = atoms.calc.results.get(key, None)
+        if value is None:
+            continue
+        fmt = ".6f" if isinstance(value, float) else ""
+        file.write(f" Feature   {key}\t{value:{fmt}}\n")
+    file.write("END_CFG\n")
+    file.write("\n")
+
+
+def _write_supercell(file: TextIO, atoms: Atoms) -> None:
+    file.write(" Supercell\n")
+    for vector in atoms.cell:
+        file.write("   ")
+        file.writelines(f"{_:14.6f}" for _ in vector)
+        file.write("\n")
+
+
+def _write_atom_data(file: TextIO, atoms: Atoms, species: list[int]) -> None:
+    line = " AtomData:  id type "
+    file.write(line)
+    file.writelines(f"{_:>14s}" for _ in ["cartes_x", "cartes_y", "cartes_z"])
+    if "forces" in atoms.calc.results:
+        file.write(" ")
+        file.writelines(f"{_:>12s}" for _ in ["fx", "fy", "fz"])
+    if "nbh_grades" in atoms.calc.results:
+        file.write("       nbh_grades")
+    file.write("\n")
+
+    numbers = atoms.get_atomic_numbers()
+    positions = atoms.get_positions()
+    if "forces" in atoms.calc.results:
+        forces = atoms.calc.results["forces"]
+    if "nbh_grades" in atoms.calc.results:
+        grades = atoms.calc.results["nbh_grades"]
+
+    for i, number in enumerate(numbers):
+        file.write(f"    {i + 1:10d}")
+        file.write(f" {species.index(number):4d}")
+        file.write(" ")
+        file.writelines(f" {positions[i, j]:13.6f}" for j in range(3))
+        if "forces" in atoms.calc.results:
+            file.write(" ")
+            file.writelines(f" {forces[i, j]:11.6f}" for j in range(3))
+        if "nbh_grades" in atoms.calc.results:
+            file.write(f"{grades[i]:17.5f}")
+        file.write("\n")
+
+
+def _write_stress(file: TextIO, atoms: Atoms) -> None:
+    line = "".join([f"{_:>12s}" for _ in ["xx", "yy", "zz", "yz", "xz", "xy"]])
+    line = f" PlusStress:{line[8:]}\n"
+    file.write(line)
+    file.write("    ")
+    for _ in atoms.get_stress():
+        _ *= -1.0 * atoms.get_volume()
+        file.write(f"{_:12.5f}")
+    file.write("\n")

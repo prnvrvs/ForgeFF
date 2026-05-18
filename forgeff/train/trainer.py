@@ -1,0 +1,185 @@
+"""`forgeff train`."""
+
+import logging
+from pathlib import Path
+from pprint import pformat
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+from ase import Atoms
+
+from forgeff.io import read_potential, write_potential
+from forgeff.io.utils import get_dummy_species, read_images
+from forgeff.loss import ErrorPrinter, LossFunction, LossFunctionBase, LossSetting
+from forgeff.optimizers import make_optimizer
+from forgeff.parallel import DummyMPIComm, is_master, world
+from forgeff.utils import measure_time
+
+from .setting import load_setting_train
+
+if TYPE_CHECKING:
+    from forgeff.optimizers.base import OptimizerBase
+
+logger = logging.getLogger(__name__)
+
+
+class Trainer:
+    """Trainer."""
+
+    def __init__(
+        self,
+        pot_data: Any,
+        seed: int | None = None,
+        rng: np.random.Generator | None = None,
+        engine: str = "cext",
+        loss: dict | LossSetting | None = None,
+        steps: list[dict] | None = None,
+        *,
+        update_mindist: bool = False,
+        relax_magmoms: bool | None = None,
+        comm: DummyMPIComm = world,
+    ) -> None:
+        """Initialize.
+
+        Parameters
+        ----------
+        pot_data : Any
+            Potential data object (e.g. EAMData, ADPData, ASEData).
+        seed : int | None (optional)
+            Seed for the random number generator. Disregarded if `rng` is given.
+        rng : np.random.Generator | None (optional)
+            Pseudo-random-number generator (PRNG) with the NumPy API.
+        engine : str (optional)
+            Engine name.
+        loss : dict | LossSetting | None (optional)
+            Dict with settings of the loss function.
+        steps : list[dict] | None (optional)
+            List of optimization steps.
+        comm : MPI.Comm
+            MPI.Comm object.
+        update_mindist : bool (optional)
+            Whether to update min_dist before training.
+        relax_magmoms : bool or None (optional)
+            Whether to relax magnetic moments.  ``None`` uses mode-based default.
+
+        """
+        self.pot_data = pot_data
+
+        seed = seed or comm.bcast(np.random.SeedSequence().entropy % (2**32), root=0)
+        if seed is not None and is_master(comm):
+            logger.info("[random seed] = %d", seed)
+        self.rng = rng or np.random.default_rng(seed)
+
+        self.engine = engine
+        self.loss = LossSetting.from_any(loss)
+        self.steps = steps or [{"method": "minimize"}]
+        self.comm = comm
+        self.should_update_mindist = update_mindist
+        self.relax_magmoms = relax_magmoms
+
+    def update_mindist(self, images: list[Atoms]) -> None:
+        """Update min_dist of the potential."""
+        if hasattr(self.pot_data, "min_dist"):
+            self.pot_data.min_dist = np.min([_.get_all_distances(mic=True) for _ in images])
+
+    def train(self, images: list[Atoms]) -> LossFunctionBase:
+        """Train.
+
+        Parameters
+        ----------
+        images : list[Atoms]
+            List of ASE Atoms objects.
+
+        Returns
+        -------
+        loss : LossFunctionBase
+            LossFunction object after training.
+
+        """
+        if self.should_update_mindist:
+            self.update_mindist(images)
+
+        loss_args = (images, self.pot_data, self.loss)
+        loss = LossFunction(
+            *loss_args,
+            engine=self.engine,
+            relax_magmoms=self.relax_magmoms,
+            comm=self.comm,
+        )
+
+        for i, step in enumerate(self.steps):
+            with measure_time(f"step {i}: {step['method']}", comm=self.comm):
+                if is_master(self.comm):
+                    logger.info("%s\n", "=" * 72)
+                    logger.info(pformat(step))
+                    logger.info("")
+                    for handler in logger.handlers:
+                        handler.flush()
+
+                # Print parameters before optimization.
+                if hasattr(self.pot_data, "initialize"):
+                    self.pot_data.initialize(self.rng)
+                if is_master(self.comm) and hasattr(self.pot_data, "log"):
+                    self.pot_data.log()
+
+                # Instantiate an `Optimizer` class
+                optimizer_class = make_optimizer(step["method"])
+                optimizer = optimizer_class(loss, **step)
+                optimizer.optimize(**step.get("kwargs", {}))
+                loss.broadcast_results()
+                if is_master(self.comm):
+                    logger.info("")
+                    for handler in logger.handlers:
+                        handler.flush()
+
+                    # Print parameters after optimization.
+                    if hasattr(self.pot_data, "log"):
+                        self.pot_data.log()
+
+                    if hasattr(self.pot_data, "write"):
+                        write_potential(f"intermediate_{i}.npy", self.pot_data)
+
+                    ErrorPrinter(loss.images).log()
+        return loss
+
+
+
+def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
+    """Train."""
+    setting = load_setting_train(filename_setting)
+    if is_master(comm):
+        logger.info(pformat(setting))
+        logger.info("")
+        for handler in logger.handlers:
+            handler.flush()
+
+    untrained_potential = str(Path(setting.potentials.initial).resolve())
+
+    species = setting.common.species or None
+    images = read_images(
+        setting.configurations.training,
+        species=species,
+        comm=comm,
+        title="configurations.training",
+    )
+    if not setting.common.species:
+        species = get_dummy_species(images)
+
+    pot_data = read_potential(untrained_potential)
+    pot_data.species = species
+
+    trainer = Trainer(
+        pot_data,
+        seed=setting.common.seed,
+        engine=setting.common.engine,
+        loss=setting.loss,
+        steps=setting.steps,
+        update_mindist=setting.update_mindist,
+        relax_magmoms=setting.common.relax_magmoms,
+        comm=comm,
+    )
+    trainer.train(images)
+
+    if is_master(comm):
+        logger.info("%s\n", "=" * 72)
+        write_potential(setting.potentials.final, pot_data)

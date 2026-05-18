@@ -1,0 +1,375 @@
+"""Module for MaxVol algorithms."""
+
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import StrEnum
+from itertools import combinations
+from math import comb
+
+import numpy as np
+from scipy.linalg import qr
+
+from forgeff.setting import DataclassFromAny
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(kw_only=True)
+class MaxVolResult:
+    """Result container for MaxVol calculations.
+
+    Similar to ``scipy.optimize.OptimizeResult``, this dataclass collects the
+    computed indices and useful convergence metadata.
+
+    Attributes
+    ----------
+    indices : ndarray
+        Indices of the matrix giving the maximum-volume submatrix.
+    submatrix : ndarray
+        Maximum-volume submatrix.
+        This is redundant for the exhaustive and the canonical MaxVol algorithms but not
+        for the MLIP-2/3 algorithm because the construction of the submatrix can be
+        imcomplete.
+    success : bool
+        Whether or not the MaxVol algorithm succeeded.
+    nit : int
+        Number of iterations.
+
+    """
+
+    indices: np.ndarray = field(default_factory=lambda: np.full(0, 0))
+    submatrix: np.ndarray = field(default_factory=lambda: np.full((0, 0), np.nan))
+    success: bool = False
+    nit: int = 0
+
+
+def _init_maxvol_first(matrix: np.ndarray) -> np.ndarray:
+    return np.arange(matrix.shape[1])
+
+
+def _init_maxvol_last(matrix: np.ndarray) -> np.ndarray:
+    return np.arange(matrix.shape[0] - matrix.shape[1], matrix.shape[0])
+
+
+def _init_maxvol_qr(matrix: np.ndarray) -> np.ndarray:
+    return qr(matrix.T, pivoting=True)[-1][: matrix.shape[1]]
+
+
+def _init_maxvol_random(matrix: np.ndarray, *, rng: np.random.Generator) -> np.ndarray:
+    return rng.choice(matrix.shape[0], matrix.shape[1], replace=False)
+
+
+class InitMethod(StrEnum):
+    """Initialization method for the indices for the MaxVol calculation."""
+
+    FIRST = "first"
+    LAST = "last"
+    QR = "qr"
+    RANDOM = "random"
+
+
+_INIT_METHODS: dict[InitMethod, Callable] = {
+    InitMethod.FIRST: _init_maxvol_first,
+    InitMethod.LAST: _init_maxvol_last,
+    InitMethod.RANDOM: _init_maxvol_random,
+    InitMethod.QR: _init_maxvol_qr,
+}
+
+
+def _validate_matrix(matrix: np.ndarray) -> None:
+    if matrix.ndim != 2:
+        msg = "matrix must be 2-dimensional"
+        raise ValueError(msg)
+    nrows, ncols = matrix.shape
+    if nrows < ncols:
+        msg = "matrix must satisfy nrows >= ncols"
+        raise ValueError(msg)
+
+
+def _validate_indices(matrix: np.ndarray, indices: np.ndarray) -> None:
+    if indices.ndim != 1:
+        msg = "indices must be 1-dimensional"
+        raise ValueError(msg)
+    nrows, ncols = matrix.shape
+    if indices.size != ncols:
+        msg = "indices length must be ncols"
+        raise ValueError(msg)
+    if len(np.unique(indices)) != indices.size:
+        msg = "indices must be unique"
+        raise ValueError(msg)
+    if np.any(indices < 0) or np.any(indices >= nrows):
+        msg = "indices must be 0 <= indices < nrows"
+        raise ValueError(msg)
+
+
+def _exhaust(matrix: np.ndarray) -> MaxVolResult:
+    """Find the MaxVol indices exhaustively.
+
+    Returns
+    -------
+    MaxVolResult
+
+    Raises
+    ------
+    RuntimeError
+
+    """
+    _validate_matrix(matrix)
+    nrows, ncols = matrix.shape
+
+    # Choose rows (configurations)
+    # This is preliminarily implemented only in an exhausive manner.
+    # This is therefore valid so far only for a small `configurations.initlal`
+    # and for a low level `potentials.final`.
+    if comb(nrows, ncols) > 2**24:  # 16777216
+        msg = "too large possible combinations of rows"
+        raise RuntimeError(msg, comb(nrows, ncols))
+    slogdet_max = -np.inf
+    indices = np.arange(ncols)
+    for _ in combinations(range(nrows), ncols):
+        indices_checked = np.array(_, dtype=int)
+        submatrix = matrix[indices_checked]
+        sign, slogdet = np.linalg.slogdet(submatrix)  # for numerical stability
+        if sign == 0.0:
+            continue
+        if slogdet > slogdet_max:
+            indices = indices_checked
+            slogdet_max = slogdet
+
+    return MaxVolResult(
+        indices=indices,
+        submatrix=matrix[indices],
+        success=True,
+        nit=0,
+    )
+
+
+def _maxvol(
+    matrix: np.ndarray,
+    indices: np.ndarray,
+    *,
+    threshold: float = 1e-9,
+    maxiter: int = 100_100,
+) -> MaxVolResult:
+    """Find the MaxVol indices.
+
+    Returns
+    -------
+    MaxVolResult
+
+    """
+    _validate_matrix(matrix)
+    _validate_indices(matrix, indices)
+    success = True
+
+    nrows, ncols = matrix.shape
+    selected = np.array(indices, dtype=int, copy=True)
+    in_selected = np.zeros(nrows, dtype=bool)
+    in_selected[selected] = True
+
+    c = _calc_c(matrix, selected)
+    for nit in range(maxiter):
+        i, j = np.divmod(np.argmax(np.abs(c)), ncols)
+        cmax = np.abs(c[i, j])
+        if cmax - 1.0 < threshold:
+            break
+        if in_selected[i]:
+            break
+        k = selected[j]
+        in_selected[k] = False
+        in_selected[i] = True
+        selected[j] = i
+        _update_c(c, i, j)
+        logger.info("maxvol %d: %s (%s, %s)", nit, cmax, i, j)
+    else:
+        msg = (
+            f"Maxvol algorithm did not converge within {maxiter} iterations. "
+            f"Current c-max: {cmax}"
+        )
+        logger.warning(msg)
+        success = False
+
+    indices = np.sort(selected)
+    return MaxVolResult(
+        indices=indices,
+        submatrix=matrix[indices],
+        success=success,
+        nit=nit,
+    )
+
+
+def _mlip(
+    matrix: np.ndarray,
+    *,
+    maxiter: int = 100_000,
+) -> MaxVolResult:
+    """Algorithm implemented in MLIP-2/3.
+
+    This algorithm incrementally updates the maximum-volume submatrix starting
+    from the scaled identity matrix.
+    The parameters are hard-coded to mimic the default behavior of MLIP-2/3.
+    Note however that the update can be incomplete, and therefore the canonical
+    MaxVol algorithm is recommended except for cross-checking purposes.
+
+    Returns
+    -------
+    MaxVolResult
+
+    """
+    _validate_matrix(matrix)
+    success = True
+
+    threshold = 1e-3
+    nrows, ncols = matrix.shape
+    selected = np.full(ncols, -1, dtype=int)
+    order = np.arange(nrows, dtype=int)
+
+    init_threshold = 1e-6
+    submatrix = init_threshold * np.eye(ncols)
+    inv_submatrix = (1.0 / init_threshold) * np.eye(ncols)
+
+    c = matrix @ inv_submatrix
+    for nit in range(maxiter):
+        i, j = np.divmod(np.argmax(np.abs(c)), ncols)
+        cmax = np.abs(c[i, j])
+        logger.info("maxvol %d: %s (%s, %s)", nit, cmax, i, j)
+        if cmax - 1.0 < threshold:
+            break
+        if order[i] in selected:
+            break
+        k = order[i]  # index for rows of the original matrix
+        selected[j] = k
+        _update_inv_submatrix(inv_submatrix, c[i], j)
+        _update_c(c, i, j)
+        c[[i, j]] = c[[j, i]]
+        order[[i, j]] = order[[j, i]]
+        submatrix[j] = matrix[k]
+
+    if np.any(selected == -1):
+        logger.warning("Some parameters have not been selected.")
+        logger.warning(np.where(selected == -1)[0])
+        success = False
+
+    return MaxVolResult(
+        indices=selected[selected != -1],
+        submatrix=submatrix,
+        success=success,
+        nit=nit,
+    )
+
+
+def _calc_c(matrix: np.ndarray, selected: np.ndarray) -> np.ndarray:
+    """Calculate c explicitly based on c @ matrix = matrix[selected].
+
+    Returns
+    -------
+    c: np.ndarray
+
+    """
+    return np.linalg.lstsq(matrix[selected].T, matrix.T, rcond=None)[0].T
+
+
+def _update_c(c: np.ndarray, i: np.int_, j: np.int_) -> None:
+    """Modify c based on the rank-1 update.
+
+    https://en.wikipedia.org/wiki/Sherman%E2%80%93Morrison_formula
+    """
+    row = c[i, :].copy()
+    row[j] -= 1.0
+    col = c[:, j].copy()
+    c -= np.outer(col, row) / c[i, j]
+
+
+def _update_inv_submatrix(
+    inv_submatrix: np.ndarray,
+    tmp: np.ndarray,
+    j: np.int_,
+) -> None:
+    """Update inv(sub(A)) based on the rank-1 update.
+
+    https://en.wikipedia.org/wiki/Sherman%E2%80%93Morrison_formula
+    """
+    row = tmp.copy()
+    row[j] -= 1.0
+    col = inv_submatrix[:, j].copy()
+    inv_submatrix -= np.outer(col, row) / tmp[j]
+
+
+class FindMethod(StrEnum):
+    """Finding method for the indices for he MaxVol calculation."""
+
+    EXHAUST = "exhaust"
+    MAXVOL = "maxvol"
+    MLIP = "mlip"
+
+
+@dataclass
+class MaxVolSetting(DataclassFromAny):
+    """MaxVol setting."""
+
+    algorithm: FindMethod = FindMethod.MAXVOL
+    init_method: InitMethod = InitMethod.QR
+    threshold: float = 1e-9
+    maxiter: int = 100_000
+
+
+@dataclass(kw_only=True)
+class MaxVol:
+    """MaxVol algorithm."""
+
+    algorithm: FindMethod = FindMethod.MAXVOL
+    init_method: InitMethod = InitMethod.QR
+    init_fn: Callable[..., np.ndarray] = field(init=False)
+    threshold: float = float("nan")
+    maxiter: int = 100_000
+    rng: np.random.Generator | None = None
+
+    def __post_init__(self) -> None:
+        """Set up the initialization method.
+
+        Raises
+        ------
+        ValueError
+
+        """
+        try:
+            self.init_fn = _INIT_METHODS[self.init_method]
+        except KeyError as err:
+            msg = f"Unknown init method: {self.init_method}"
+            raise ValueError(msg) from err
+
+    def run(self, matrix: np.ndarray) -> MaxVolResult:
+        """Find the indices for the MaxVol calculation.
+
+        Parameters
+        ----------
+        matrix : ndarray
+            Matrix to evaluate.
+
+        Returns
+        -------
+        MaxVolResult
+
+        Raises
+        ------
+        ValueError
+
+        """
+        _validate_matrix(matrix)
+        if self.algorithm == FindMethod.EXHAUST:
+            return _exhaust(matrix)
+        if self.algorithm == FindMethod.MAXVOL:
+            if self.init_method == InitMethod.RANDOM:
+                indices = self.init_fn(matrix, rng=self.rng)
+            else:
+                indices = self.init_fn(matrix)
+            return _maxvol(
+                matrix,
+                indices,
+                threshold=self.threshold,
+                maxiter=self.maxiter,
+            )
+        if self.algorithm == FindMethod.MLIP:
+            return _mlip(matrix)
+        raise ValueError(self.algorithm)
