@@ -1,0 +1,11 @@
+:orphan:
+
+Simulated annealing example
+===========================
+
+This walkthrough shows the simulated annealing optimizer on a tiny quadratic
+loss. It is a minimal example of the same API that the training code uses.
+
+.. literalinclude:: ../../../examples/python/3.anneal.py
+   :language: python
+

@@ -49,6 +49,11 @@ The GA implementation accepts the usual population settings:
 - ``crossover_probability``: probability of combining two parents
 - ``superhuman``: whether to refine elites with a local optimizer
 
+Example
+-------
+
+See the standalone walkthrough in :doc:`/examples/python/4.ga`.
+
 See also
 --------
 

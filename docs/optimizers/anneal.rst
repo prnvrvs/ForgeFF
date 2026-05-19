@@ -56,6 +56,11 @@ Supported keyword arguments
 Like the other optimizers, simulated annealing works on the current potential
 parameter vector and writes back the improved parameters at the end of the run.
 
+Example
+-------
+
+See the standalone walkthrough in :doc:`/examples/python/3.anneal`.
+
 See also
 --------
 

@@ -15,6 +15,7 @@ author = "Pranav Kumar"
 
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,24 @@ os.environ.setdefault(
     "MESONPY_EDITABLE_SKIP",
     str(ROOT / "build" / f"cp{sys.version_info.major}{sys.version_info.minor}"),
 )
+
+sys.meta_path = [
+    finder
+    for finder in sys.meta_path
+    if "MesonpyMetaFinder" not in type(finder).__name__
+    or "ForgeFF" not in repr(finder)
+    and "motep" not in repr(finder)
+]
+
+spec = importlib.util.spec_from_file_location(
+    "forgeff",
+    ROOT / "forgeff" / "__init__.py",
+    submodule_search_locations=[str(ROOT / "forgeff")],
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["forgeff"] = module
+assert spec.loader is not None
+spec.loader.exec_module(module)
 
 extensions = [
     "sphinx.ext.autodoc",

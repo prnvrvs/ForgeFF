@@ -289,15 +289,12 @@ class GeneticAlgorithm:
                 elite = self.supermutation(elite)
             offspring = elite[:]
             while len(offspring) < self.population_size:
-                # Changed to random.choice as random.choices returns a list
                 parent1 = random.choice(elite)
                 parent2 = random.choice(self.population)
+                child1, child2 = self.crossover(parent1, parent2)
+                offspring.extend([self.mutate(child1), self.mutate(child2)])
 
-                if random.random() < self.crossover_probability:
-                    child1, child2 = self.crossover(parent1, parent2)
-                    offspring.extend([self.mutate(child1), self.mutate(child2)])
-
-            self.population = elite + offspring
+            self.population = offspring[: self.population_size]
             if elite_callback:
                 elite_callback(gen, fitness_function(elite[0]))
         return best_solution

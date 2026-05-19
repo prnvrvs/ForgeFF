@@ -1,29 +1,15 @@
-"""Common setting for pytest."""
+from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import pytest
 
-
-@pytest.fixture
-def data_path() -> Path:
-    """Get path to the MD-trajectory data.
-
-    Returns
-    -------
-    Path
-
-    """
-    return Path(__file__).parent / "data_path"
-
-
-@pytest.fixture
-def doc_path() -> Path:
-    """Get path to the documentation.
-
-    Returns
-    -------
-    Path
-
-    """
-    return Path(__file__).parents[1] / "docs"
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.meta_path = [
+    finder
+    for finder in sys.meta_path
+    if "MesonpyMetaFinder" not in type(finder).__name__
+    or "ForgeFF" not in repr(finder)
+    and "motep" not in repr(finder)
+]

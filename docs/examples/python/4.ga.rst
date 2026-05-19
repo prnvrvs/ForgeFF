@@ -1,0 +1,12 @@
+:orphan:
+
+Genetic algorithm example
+=========================
+
+This walkthrough shows the genetic algorithm optimizer on a small multimodal
+landscape. It is a compact example of the same optimizer interface used by
+the training code.
+
+.. literalinclude:: ../../../examples/python/4.ga.py
+   :language: python
+

@@ -26,7 +26,6 @@ class LossSetting(DataclassFromAny):
     energy_weight: float = 1.0
     forces_weight: float = 0.01
     stress_weight: float = 0.001
-    mgrad_weight: float = 0.1
     energy_per_atom: bool = True
     forces_per_atom: bool = True
     stress_times_volume: bool = True
@@ -64,14 +63,11 @@ def format_error_statistics(errors: dict[str, dict[str, float]]) -> str:
         ("Energy per atom (eV/atom)", "energy_per_atom", 1.0),
         ("Forces per component (eV/angstrom)", "forces", 1.0),
         ("Stress per component (GPa)", "stress", eV * 1e21),
-        ("Magnetic gradient (eV/mu_B)", "mgrad", 1.0),
     ]:
         stats = errors.get(key, {})
-        count = int(stats.get("N", 0))
-        if key == "mgrad" and not count:
-            continue
         if not stats:
             continue
+        count = int(stats.get("N", 0))
         rows.append(
             (
                 label,
@@ -388,99 +384,6 @@ class LossFunctionStress:
             jac_cnf += c * 2.0 * np.sum(f(result - target) * dsdp, axis=(-2, -1))
         self.comm.Allreduce(jac_cnf, jac_all)
         return jac_all / len(self.images) if self.stress_per_conf else jac_all
-
-
-class LossFunctionMgrad:
-    """Magnetic moments gradients contribution to the loss function.
-
-    Attributes
-    ----------
-    idcs_mmg : npt.NDArray[np.int32]
-        Indices of images that have magmoms.
-
-    """
-
-    def __init__(
-        self,
-        images: list[Atoms],
-        *,
-        pot_data: Any,
-        mgrad_per_atom: bool = False,
-        mgrad_per_conf: bool = True,
-        comm: DummyMPIComm = world,
-    ) -> None:
-        """Initialize."""
-        self.images = images
-        self.pot_data = pot_data
-        self.mgrad_per_atom = mgrad_per_atom
-        self.mgrad_per_conf = mgrad_per_conf
-        self.comm = comm
-
-        numbers_of_atoms = np.fromiter(
-            (len(atoms) for atoms in images),
-            dtype=float,
-            count=len(images),
-        )
-        self.inverse_numbers_of_atoms = 1.0 / numbers_of_atoms
-
-        self.idcs_mgd = np.fromiter(
-            (i for i, atoms in enumerate(images) if "mgrad" in atoms.calc.results),
-            dtype=int,
-        )
-
-        self.configuration_weight = np.ones(len(self.images))
-
-    def calculate(self) -> np.float64:
-        """Calculate the contribution to the loss function.
-
-        Returns
-        -------
-        loss : float
-            Force contribution to the loss function.
-
-        """
-        ncnf = len(self.images)
-        loss_cnf = 0.0
-        for i in range(self.comm.rank, ncnf, self.comm.size):
-            if i not in self.idcs_mgd:
-                continue
-            atoms = self.images[i]
-            target = atoms.calc.targets["mgrad"]
-            result = atoms.calc.results["mgrad"]
-            c = self.configuration_weight[i]
-            if self.mgrad_per_atom:
-                c *= self.inverse_numbers_of_atoms[i]
-            loss_cnf += c * np.sum((result - target) ** 2)
-        loss_all = self.comm.allreduce(loss_cnf)
-        return loss_all / ncnf if self.mgrad_per_conf else loss_all
-
-    def jac(self) -> npt.NDArray[np.float64]:
-        """Calculate the contribution to the loss function Jacobian.
-
-        Returns
-        -------
-        jac : npt.NDArray[np.float64]
-            Force contribution to the loss function Jacobian.
-
-        """
-        ncnf = len(self.images)
-        jac_cnf = np.zeros(self.pot_data.number_of_parameters_optimized)
-        jac_all = np.zeros(self.pot_data.number_of_parameters_optimized)
-        for i in range(self.comm.rank, ncnf, self.comm.size):
-            if i not in self.idcs_mgd:
-                continue
-            atoms = self.images[i]
-            target = atoms.calc.targets["mgrad"]
-            result = atoms.calc.results["mgrad"]
-            c = self.configuration_weight[i]
-            if self.mgrad_per_atom:
-                c *= self.inverse_numbers_of_atoms[i]
-            dmdp = atoms.calc.engine.jac_mgrad(atoms).parameters
-            jac_cnf += c * 2.0 * np.sum((result - target) * dmdp, axis=-1)
-        self.comm.Allreduce(jac_cnf, jac_all)
-        return jac_all / ncnf if self.mgrad_per_conf else jac_all
-
-
 class LossFunctionBase(ABC):
     """Loss function."""
 
@@ -539,13 +442,6 @@ class LossFunctionBase(ABC):
             energy_per_atom=self.setting.energy_per_atom,
             comm=self.comm,
         )
-        self.loss_mgrad = LossFunctionMgrad(
-            self.images,
-            pot_data=self.pot_data,
-            mgrad_per_atom=self.setting.forces_per_atom,
-            mgrad_per_conf=self.setting.forces_per_conf,
-            comm=self.comm,
-        )
 
     @abstractmethod
     def __call__(self, parameters: npt.NDArray[np.float64]) -> np.float64:
@@ -599,7 +495,6 @@ class LossFunctionBase(ABC):
             self.setting.energy_weight * self.loss_energy.calculate()
             + self.setting.forces_weight * self.loss_forces.calculate()
             + self.setting.stress_weight * self.loss_stress.calculate()
-            + self.setting.mgrad_weight * self.loss_mgrad.calculate()
         )
 
     def jac(self, parameters: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -615,8 +510,6 @@ class LossFunctionBase(ABC):
             jac += self.setting.forces_weight * self.loss_forces.jac()
         if self.loss_stress.idcs_str.size and self.setting.stress_weight:
             jac += self.setting.stress_weight * self.loss_stress.jac()
-        if self.loss_mgrad.idcs_mgd.size and self.setting.mgrad_weight:
-            jac += self.setting.mgrad_weight * self.loss_mgrad.jac()
         return jac
 
 
@@ -651,10 +544,6 @@ class ErrorPrinter:
         )
         self.idcs_str = np.fromiter(
             (i for i, atoms in enumerate(images) if "stress" in atoms.calc.targets),
-            dtype=int,
-        )
-        self.idcs_mgr = np.fromiter(
-            (i for i, atoms in enumerate(images) if "mgrad" in atoms.calc.targets),
             dtype=int,
         )
 
@@ -693,15 +582,6 @@ class ErrorPrinter:
         )
         return _calc_errors_from_diff(np.fromiter(iterable, dtype=float))
 
-    def _calc_errors_mgrad(self) -> dict[str, float]:
-        iterable = (
-            self.images[i].calc.results["mgrad"][j]
-            - self.images[i].calc.targets["mgrad"][j]
-            for i in self.idcs_mgr
-            for j in range(len(self.images[i]))
-        )
-        return _calc_errors_from_diff(np.fromiter(iterable, dtype=float))
-
     def calculate(self) -> dict[str, dict[str, float]]:
         """Calculate errors.
 
@@ -718,7 +598,6 @@ class ErrorPrinter:
         errors["energy_per_atom"] = self._calc_errors_energy_per_atom()
         errors["forces"] = self._calc_errors_forces()
         errors["stress"] = self._calc_errors_stress()  # eV/Ang^3
-        errors["mgrad"] = self._calc_errors_mgrad()
         return errors
 
     def log(self, logger: logging.Logger = logger) -> dict[str, dict[str, float]]:

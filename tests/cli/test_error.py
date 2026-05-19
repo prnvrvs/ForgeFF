@@ -27,7 +27,7 @@ def test_error_cli_runs_on_example_dataset(potential: str, dataset: str, engine:
         engine=engine,
     )
 
-    assert set(errors) == {"energy", "energy_per_atom", "forces", "stress", "mgrad"}
+    assert set(errors) == {"energy", "energy_per_atom", "forces", "stress"}
     assert np.isfinite(errors["energy"]["RMS"])
     assert np.isfinite(errors["forces"]["RMS"])
     assert errors["stress"]["RMS"] >= 0.0
