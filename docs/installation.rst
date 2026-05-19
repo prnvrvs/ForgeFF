@@ -1,6 +1,15 @@
 Installation
 ============
 
+PyPI
+----
+
+ForgeFF is published on PyPI and can be installed directly with ``pip``:
+
+.. code-block:: bash
+
+    pip install ForgeFF
+
 GitHub
 ------
 

@@ -8,6 +8,12 @@ ForgeFF is a Python toolkit for fitting semi-empirical interatomic potentials.
 It keeps the model equations, parameter order, and fitting workflow explicit so
 the fundamentals stay easy to inspect and explain.
 
+Install from PyPI with:
+
+```bash
+pip install ForgeFF
+```
+
 The recommended user-facing format is TOML:
 - custom analytic pair potentials
 - built-in analytical forms such as Morse and double-Morse
