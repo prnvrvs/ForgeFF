@@ -1,0 +1,76 @@
+name: PyPI
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Publish target
+        required: true
+        type: choice
+        default: testpypi
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  build_dist:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install pypa/build
+        run: python -m pip install build
+      - name: Build sdist and wheel
+        run: python -m build --sdist --wheel --outdir dist .
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: forgeff-dist
+          path: dist/*
+          retention-days: 5
+
+  publish_testpypi:
+    name: Publish to TestPyPI
+    needs: build_dist
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/ForgeFF/
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: forgeff-dist
+          path: dist
+      - name: Publish distribution to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish_pypi:
+    name: Publish to PyPI
+    needs: build_dist
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ForgeFF/
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: forgeff-dist
+          path: dist
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
