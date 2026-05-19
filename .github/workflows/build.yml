@@ -27,7 +27,7 @@ jobs:
       - name: Upload sdist as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: motep-sdist
+          name: forgeff-sdist
           path: dist/*.tar.gz
           retention-days: 5
   build_wheels:
@@ -55,12 +55,12 @@ jobs:
           CIBW_BUILD: "cp311-* cp312-* cp313-* cp314-*"
           CIBW_SKIP: "*-musllinux*"
           CIBW_TEST_COMMAND: >-
-            python -c "from motep.potentials.mtp.cext import _mtp_cext"
+            python -c "from forgeff.calculator import make_calculator"
         run: python -m cibuildwheel --output-dir dist
       - name: Upload built wheels as artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: motep-${{ matrix.os }}
+          name: forgeff-${{ matrix.os }}
           path: dist/*.whl
           retention-days: 5
   test_built_wheels:
@@ -87,7 +87,7 @@ jobs:
       - name: Download built wheels
         uses: actions/download-artifact@v8
         with:
-          name: motep-${{ matrix.os }}
+          name: forgeff-${{ matrix.os }}
           path: dist
       - name: Install runtime NumPy and test deps
         run: |
@@ -97,17 +97,17 @@ jobs:
         run: python -m pip install --no-deps dist/*cp311*.whl
       - name: Run pytest
         run: |
-          python -m pytest -v tests/potentials/mtp/test_engines.py
+          python -m pytest -v tests/potentials/tersoff/test_numba.py
   publish_testpypi:
     name: Publish Python 🐍 distributions 📦 to TestPyPI
     needs: [build_sdist, build_wheels, test_built_wheels]
-    if: github.repository == 'imw-md/motep' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.repository == 'prnvrvs/ForgeFF' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/motep/
+      url: https://test.pypi.org/project/ForgeFF/
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/download-dist-artifacts
@@ -118,13 +118,13 @@ jobs:
   publish_pypi:
     name: Publish Python 🐍 distributions 📦 to PyPI
     needs: [publish_testpypi]
-    if: github.repository == 'imw-md/motep' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'prnvrvs/ForgeFF' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     environment:
       name: pypi
-      url: https://pypi.org/project/motep/
+      url: https://pypi.org/project/ForgeFF/
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/download-dist-artifacts
