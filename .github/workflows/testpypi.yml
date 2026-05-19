@@ -29,11 +29,6 @@ jobs:
     name: Publish to TestPyPI
     needs: build_dist
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/project/ForgeFF/
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -43,3 +38,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          username: __token__
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}

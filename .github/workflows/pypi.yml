@@ -32,11 +32,6 @@ jobs:
     name: Publish to PyPI
     needs: build_dist
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    environment:
-      name: pypi
-      url: https://pypi.org/project/ForgeFF/
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -44,3 +39,6 @@ jobs:
           path: dist
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          username: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
