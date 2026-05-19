@@ -9,7 +9,7 @@ add_project_arguments(
   language: 'c',
 )
 
-py = import('python').find_installation(pure: false)
+py = import('python').find_installation(pure: true)
 
 install_subdir(
   'forgeff',
