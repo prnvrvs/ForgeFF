@@ -32,6 +32,7 @@ sphinx_gallery_conf = {
     "examples_dirs": ["../examples"],
     "gallery_dirs": ["examples"],
     "within_subsection_order": "FileNameSortKey",
+    "download_all_examples": False,
 }
 
 

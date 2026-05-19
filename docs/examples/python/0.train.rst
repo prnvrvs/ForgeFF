@@ -7,12 +7,6 @@
 
 .. only:: html
 
-    .. note::
-        :class: sphx-glr-download-link-note
-
-        :ref:`Go to the end <sphx_glr_download_examples_python_0.train.py>`
-        to download the full example code.
-
 .. rst-class:: sphx-glr-example-title
 
 .. _sphx_glr_examples_python_0.train.py:
@@ -222,25 +216,6 @@ Start from a very small coarse tabulated EAM guess.
 .. rst-class:: sphx-glr-timing
 
    **Total running time of the script:** (0 minutes 51.051 seconds)
-
-
-.. _sphx_glr_download_examples_python_0.train.py:
-
-.. only:: html
-
-  .. container:: sphx-glr-footer sphx-glr-footer-example
-
-    .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-      :download:`Download Jupyter notebook: 0.train.ipynb <0.train.ipynb>`
-
-    .. container:: sphx-glr-download sphx-glr-download-python
-
-      :download:`Download Python source code: 0.train.py <0.train.py>`
-
-    .. container:: sphx-glr-download sphx-glr-download-zip
-
-      :download:`Download zipped: 0.train.zip <0.train.zip>`
 
 
 .. only:: html

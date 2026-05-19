@@ -7,12 +7,6 @@
 
 .. only:: html
 
-    .. note::
-        :class: sphx-glr-download-link-note
-
-        :ref:`Go to the end <sphx_glr_download_examples_python_9.calc.py>`
-        to download the full example code.
-
 .. rst-class:: sphx-glr-example-title
 
 .. _sphx_glr_examples_python_9.calc.py:
@@ -89,25 +83,6 @@ This example shows how to attach the EAM calculator to a periodic Al cell.
 .. rst-class:: sphx-glr-timing
 
    **Total running time of the script:** (0 minutes 0.004 seconds)
-
-
-.. _sphx_glr_download_examples_python_9.calc.py:
-
-.. only:: html
-
-  .. container:: sphx-glr-footer sphx-glr-footer-example
-
-    .. container:: sphx-glr-download sphx-glr-download-jupyter
-
-      :download:`Download Jupyter notebook: 9.calc.ipynb <9.calc.ipynb>`
-
-    .. container:: sphx-glr-download sphx-glr-download-python
-
-      :download:`Download Python source code: 9.calc.py <9.calc.py>`
-
-    .. container:: sphx-glr-download sphx-glr-download-zip
-
-      :download:`Download zipped: 9.calc.zip <9.calc.zip>`
 
 
 .. only:: html
