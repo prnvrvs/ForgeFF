@@ -82,7 +82,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "numpy${{ matrix.numpy }}" --only-binary=numba ase scipy numba jax pytest
       - name: Install built wheel
-        run: python -m pip install --no-deps dist/*.whl
+        run: python -m pip install dist/*.whl
       - name: Run pytest
         run: |
           python -m pytest -v tests/potentials/tersoff/test_numba.py
