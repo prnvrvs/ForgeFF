@@ -1,4 +1,4 @@
-name: PyPI
+name: PyPI / TestPyPI Release
 on:
   push:
     tags:
