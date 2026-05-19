@@ -54,6 +54,7 @@ jobs:
         env:
           CIBW_BUILD: "cp311-* cp312-* cp313-* cp314-*"
           CIBW_SKIP: "*-musllinux*"
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           CIBW_TEST_COMMAND: >-
             python -c "from forgeff.calculator import make_calculator"
         run: python -m cibuildwheel --output-dir dist
