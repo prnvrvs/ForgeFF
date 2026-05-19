@@ -33,6 +33,14 @@ jobs:
     needs: build_dist
     runs-on: ubuntu-latest
     steps:
+      - name: Check PyPI token secret
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "PYPI_API_TOKEN secret is missing. Add it in GitHub repository secrets."
+            exit 1
+          fi
       - uses: actions/download-artifact@v8
         with:
           name: forgeff-dist
