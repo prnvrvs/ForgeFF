@@ -66,6 +66,19 @@ def test_numba_eam_matches_ase_reference() -> None:
     np.testing.assert_allclose(numba_res["stress"], ase_res["stress"], rtol=1e-12, atol=1e-12)
 
 
+def test_ase_eam_jacobian_matches_numba_finite_difference() -> None:
+    atoms = bulk("Al", "fcc", a=4.05) * (2, 2, 2)
+    data = _make_eam_data()
+
+    ase_engine = ASEAMEngine(data)
+    numba_engine = NumbaEAMEngine(data)
+
+    ase_jac = ase_engine.jac_energy(atoms).parameters
+    numba_jac = numba_engine.jac_energy(atoms).parameters
+
+    np.testing.assert_allclose(ase_jac, numba_jac, rtol=1e-6, atol=1e-6)
+
+
 def test_numba_adp_matches_eam_when_angular_terms_are_zero() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (4, 4, 4)
     eam_data = _make_eam_data()

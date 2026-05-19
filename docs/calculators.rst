@@ -101,15 +101,17 @@ Analytical gradients
 ---------------------
 
 The calculator interface returns energy, forces, and stress, but parameter
-Jacobians are still incomplete:
+Jacobians are still partly numerical:
 
 - analytical pair expressions provide distance derivatives
-- the optimizer-side parameter Jacobians are mostly numerical placeholders
-- the NumPy-backed EAM path currently does not provide analytical parameter
-  Jacobians
+- the NumPy-backed EAM path provides a numerical finite-difference Jacobian
+- the Numba-backed EAM and ADP paths also use numerical Jacobian fallback
+- the optimizer-side parameter Jacobians are therefore available, but not
+  yet derived fully in closed form for every engine
 
 This is enough for evaluation and for current smoke-test fitting workflows,
-but it is not yet a full analytical-gradient implementation for every engine.
+but it is not yet a full closed-form analytical-gradient implementation for
+every engine.
 
 Related pages
 -------------

@@ -57,7 +57,10 @@ class EAMData:
         if "phi_values" in self.optimized:
             tmp.append(self.phi_values.flat)
         if "rho_values" in self.optimized:
-            tmp.append(self.rho_values.flat)
+            if self.form == "fs":
+                tmp.append(self.rho_values.flat)
+            else:
+                tmp.append(self.rho_values.diagonal(axis1=0, axis2=1).T.flat)
         if "emb_values" in self.optimized:
             tmp.append(self.emb_values.flat)
         return np.hstack(tmp)
@@ -77,9 +80,15 @@ class EAMData:
             self.phi_values = 0.5 * (self.phi_values + self.phi_values.transpose(1, 0, 2))
             n += size
         if "rho_values" in self.optimized:
-            size = spc * spc * nr
-            self.rho_values = params[n : n + size].reshape(spc, spc, nr)
-            self.rho_values = 0.5 * (self.rho_values + self.rho_values.transpose(1, 0, 2))
+            if self.form == "fs":
+                size = spc * spc * nr
+                self.rho_values = params[n : n + size].reshape(spc, spc, nr)
+            else:
+                size = spc * nr
+                curves = params[n : n + size].reshape(spc, nr)
+                self.rho_values = np.zeros((spc, spc, nr), dtype=float)
+                for idx in range(spc):
+                    self.rho_values[:, idx, :] = curves[idx]
             n += size
         if "emb_values" in self.optimized:
             size = spc * nrho
@@ -95,7 +104,10 @@ class EAMData:
         if "phi_values" in self.optimized:
             n += spc * spc * nr
         if "rho_values" in self.optimized:
-            n += spc * spc * nr
+            if self.form == "fs":
+                n += spc * spc * nr
+            else:
+                n += spc * nr
         if "emb_values" in self.optimized:
             n += spc * nrho
         return n
@@ -113,8 +125,13 @@ class EAMData:
             self.phi_values = rng.uniform(-0.1, 0.1, (spc, spc, nr))
             self.phi_values = 0.5 * (self.phi_values + self.phi_values.transpose(1, 0, 2))
         if self.rho_values is None:
-            self.rho_values = rng.uniform(0.0, 0.1, (spc, spc, nr))
-            self.rho_values = 0.5 * (self.rho_values + self.rho_values.transpose(1, 0, 2))
+            if self.form == "fs":
+                self.rho_values = rng.uniform(0.0, 0.1, (spc, spc, nr))
+            else:
+                curves = rng.uniform(0.0, 0.1, (spc, nr))
+                self.rho_values = np.zeros((spc, spc, nr), dtype=float)
+                for idx in range(spc):
+                    self.rho_values[:, idx, :] = curves[idx]
         if self.emb_values is None:
             self.emb_values = rng.uniform(-0.1, 0.1, (spc, nrho))
 

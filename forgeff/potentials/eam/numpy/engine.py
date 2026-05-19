@@ -5,6 +5,7 @@ from ase import Atoms
 from ase.calculators.eam import EAM
 from ase.data import chemical_symbols
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from types import SimpleNamespace
 
 from forgeff.potentials.eam.data import EAMData
 
@@ -100,10 +101,33 @@ class ASEAMEngine:
         }
     
     def jac_energy(self, atoms: Atoms):
-        """Numerical Jacobian for energy (fallback).
-        
-        For semi-empirical fitting, analytical Jacobians are preferred.
+        """Numerical Jacobian for energy.
+
+        The NumPy-backed EAM engine does not expose an analytical Jacobian,
+        so we use a symmetric finite-difference fallback over the serialized
+        parameter vector.
         """
-        # TODO: Implement analytical Jacobian if possible, 
-        # or use finite differences here.
-        raise NotImplementedError("Analytical Jacobian for ASE EAM engine not yet implemented.")
+        dx = 1e-6
+        orig_params = np.asarray(self.eam_data.parameters, dtype=float).copy()
+        jac = np.zeros_like(orig_params)
+
+        try:
+            for i in range(orig_params.size):
+                p_plus = orig_params.copy()
+                p_plus[i] += dx
+                self.eam_data.parameters = p_plus
+                self.update(self.eam_data)
+                e_plus = self.calculate(atoms)["energy"]
+
+                p_minus = orig_params.copy()
+                p_minus[i] -= dx
+                self.eam_data.parameters = p_minus
+                self.update(self.eam_data)
+                e_minus = self.calculate(atoms)["energy"]
+
+                jac[i] = (e_plus - e_minus) / (2.0 * dx)
+        finally:
+            self.eam_data.parameters = orig_params
+            self.update(self.eam_data)
+
+        return SimpleNamespace(parameters=jac)

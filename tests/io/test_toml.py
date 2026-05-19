@@ -85,6 +85,52 @@ values = [0.7, 0.8, 0.9]
     np.testing.assert_allclose(data.emb_values[0], [0.7, 0.8, 0.9])
 
 
+def test_read_tabulated_eam_alloy_uses_diagonal_density_parameters(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "eam_alloy.toml",
+        """
+[potential]
+family = "eam"
+form = "alloy"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = [0.1, 0.2, 0.3]
+rho = [0.0, 1.0, 2.0]
+
+[pair.AlAl]
+values = [0.1, 0.2, 0.3]
+
+[pair.AlCu]
+values = [0.4, 0.5, 0.6]
+
+[pair.CuCu]
+values = [0.7, 0.8, 0.9]
+
+[density.Al]
+values = [1.0, 1.1, 1.2]
+
+[density.Cu]
+values = [1.3, 1.4, 1.5]
+
+[embedding.Al]
+values = [2.0, 2.1, 2.2]
+
+[embedding.Cu]
+values = [2.3, 2.4, 2.5]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, EAMData)
+    assert data.number_of_parameters_optimized == 24
+    assert data.parameters.size == 24
+    np.testing.assert_allclose(data.rho_values[:, 0, :], [[1.0, 1.1, 1.2], [1.0, 1.1, 1.2]])
+    np.testing.assert_allclose(data.rho_values[:, 1, :], [[1.3, 1.4, 1.5], [1.3, 1.4, 1.5]])
+
+
 def test_read_tabulated_fs_toml(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "fs.toml",
@@ -134,6 +180,44 @@ values = [2.3, 2.4, 2.5]
     assert data.form == "fs"
     assert data.engine == "numba"
     np.testing.assert_allclose(data.rho_values[0, 1], [1.3, 1.4, 1.5])
+
+
+def test_eam_fs_initialize_preserves_asymmetry() -> None:
+    data = EAMData(
+        form="fs",
+        species_count=2,
+        r_grid=np.array([0.1, 0.2, 0.3]),
+        rho_grid=np.array([0.0, 1.0, 2.0]),
+        phi_values=np.zeros((2, 2, 3)),
+        rho_values=None,
+        emb_values=np.zeros((2, 3)),
+    )
+    data.species = np.array([13, 29], dtype=np.int32)
+
+    data.initialize(np.random.default_rng(42))
+
+    assert not np.allclose(data.rho_values[0, 1], data.rho_values[1, 0])
+
+
+def test_eam_fs_parameter_setter_preserves_asymmetry() -> None:
+    data = EAMData(
+        form="fs",
+        species_count=2,
+        r_grid=np.array([0.1, 0.2, 0.3]),
+        rho_grid=np.array([0.0, 1.0, 2.0]),
+        phi_values=np.zeros((2, 2, 3)),
+        rho_values=np.zeros((2, 2, 3)),
+        emb_values=np.zeros((2, 3)),
+    )
+    data.species = np.array([13, 29], dtype=np.int32)
+
+    params = np.arange(data.number_of_parameters_optimized, dtype=float)
+    data.parameters = params
+
+    rho_offset = 2 * 2 * 3
+    expected_rho = params[rho_offset : rho_offset + 12].reshape(2, 2, 3)
+    np.testing.assert_allclose(data.rho_values, expected_rho)
+    assert not np.allclose(data.rho_values[0, 1], data.rho_values[1, 0])
 
 
 def test_read_tabulated_adp_toml(tmp_path: Path) -> None:

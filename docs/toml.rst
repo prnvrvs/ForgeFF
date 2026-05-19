@@ -219,7 +219,8 @@ What the data object stores
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - ``phi_values`` holds the pair tables.
-- ``rho_values`` holds the density tables.
+- ``rho_values`` holds the density tables. For alloy EAM this is one density
+  curve per species; for Finnis-Sinclair it is a full species-pair matrix.
 - ``emb_values`` holds the embedding tables.
 
 ADP theory and TOML mapping
