@@ -115,5 +115,5 @@ Related pages
 -------------
 
 - :doc:`toml`
-- :doc:`examples/analytical`
+- :doc:`analytical`
 - :doc:`theory`

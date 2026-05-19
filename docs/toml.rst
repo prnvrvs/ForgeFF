@@ -9,10 +9,16 @@ still making the potential family, term order, backend, and initial guess
 explicit for the code.
 
 This page is the authoritative reference for the ForgeFF TOML schema. For
-copyable examples, see:
+worked examples, see:
 
 - :doc:`examples/toml`
-- :download:`examples/toml/potential.toml <../examples/toml/potential.toml>`
+- :doc:`example`
+
+The example set includes unary and binary layouts for the supported families:
+
+- pairwise: unary and binary
+- EAM: unary alloy, binary alloy, unary FS, and binary FS
+- ADP: unary and binary
 
 Overview
 --------
@@ -82,7 +88,7 @@ ForgeFF supports two analytical pair modes:
 - user-defined expressions
 
 The full equation list and parameter order for the built-in forms lives in
-:doc:`examples/analytical`. That page is the place to check when you want to
+:doc:`analytical`. That page is the place to check when you want to
 know exactly what a name like ``double_morse`` means.
 
 Example:
@@ -98,7 +104,7 @@ Example:
 
 In this example, ``double_morse`` tells ForgeFF which formula to use, and
 ``initial`` gives the first values for that formula in the same order listed on
-:doc:`examples/analytical`.
+:doc:`analytical`.
 
 The ``backend`` can be set to ``"numba"`` when you want the faster JIT pair
 backend for supported built-in forms.
@@ -188,6 +194,12 @@ Read this as follows:
 - ``density.Al`` is the density contribution carried by Al neighbors.
 - ``embedding.Al`` is the embedding curve for Al.
 
+A matching worked example is listed in :doc:`examples/toml` under the EAM
+section.
+
+If you want the same alloy layout for a binary system, see the binary Alloy
+example in :doc:`examples/toml`.
+
 Finnis-Sinclair EAM
 ~~~~~~~~~~~~~~~~~~~
 
@@ -199,6 +211,12 @@ on both the central species and the neighbor species:
     \rho_i = \sum_{j \ne i} \rho_{\alpha_i \alpha_j}(r_{ij})
 
 In TOML this means the density table is fully species-pair dependent.
+
+A matching worked example is listed in :doc:`examples/toml` under the EAM
+section.
+
+If you want the same Finnis-Sinclair layout for a unary system, see the unary
+FS example in :doc:`examples/toml`.
 
 If you want to record the intended runtime backend, you can add a ``backend``
 field to the ``[potential]`` block as metadata, for example ``numba``.

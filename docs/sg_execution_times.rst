@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**02:55.333** total execution time for 4 files **from all galleries**:
+**02:56.895** total execution time for 4 files **from all galleries**:
 
 .. container::
 
@@ -32,15 +32,15 @@ Computation times
    * - Example
      - Time
      - Mem (MB)
-   * - :ref:`sphx_glr_examples_1.0_python_2.grade.py` (``../examples/1.0_python/2.grade.py``)
-     - 01:14.782
+   * - :ref:`sphx_glr_examples_python_2.grade.py` (``../examples/python/2.grade.py``)
+     - 01:16.154
      - 0.0
-   * - :ref:`sphx_glr_examples_1.0_python_0.train.py` (``../examples/1.0_python/0.train.py``)
-     - 00:51.031
+   * - :ref:`sphx_glr_examples_python_0.train.py` (``../examples/python/0.train.py``)
+     - 00:51.051
      - 0.0
-   * - :ref:`sphx_glr_examples_1.0_python_1.evaluate.py` (``../examples/1.0_python/1.evaluate.py``)
-     - 00:49.519
+   * - :ref:`sphx_glr_examples_python_1.evaluate.py` (``../examples/python/1.evaluate.py``)
+     - 00:49.685
      - 0.0
-   * - :ref:`sphx_glr_examples_1.0_python_9.calc.py` (``../examples/1.0_python/9.calc.py``)
-     - 00:00.000
+   * - :ref:`sphx_glr_examples_python_9.calc.py` (``../examples/python/9.calc.py``)
+     - 00:00.004
      - 0.0

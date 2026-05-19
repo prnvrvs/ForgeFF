@@ -1,0 +1,25 @@
+[common]
+seed = 42
+engine = "numba"
+
+[configurations]
+training = ["../../data/binary/training.cfg"]
+
+[potentials]
+initial = "initial.toml"
+final = "final.npy"
+
+[loss]
+energy_weight = 1.0
+forces_weight = 0.1
+stress_weight = 0.0
+
+[[steps]]
+method = "minimize"
+
+[steps.kwargs]
+method = "L-BFGS-B"
+tol = 1.0e-6
+
+[steps.kwargs.options]
+maxiter = 200

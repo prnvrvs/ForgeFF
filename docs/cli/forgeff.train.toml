@@ -2,11 +2,11 @@
 seed = 42  # random seed for initializing the potential parameters etc.
 
 [configurations]
-training = 'training.cfg'
+training = 'examples/toml/data/unary/training.cfg'
 
 [potentials]
 initial = 'initial.toml'
-final = 'final.toml'
+final = 'final.npy'
 
 [loss]  # setting for the loss function
 energy_weight = 1.0

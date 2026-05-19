@@ -7,3 +7,4 @@ Command line interface (CLI)
     train
     evaluate
     grade
+    error

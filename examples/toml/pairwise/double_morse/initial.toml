@@ -1,0 +1,10 @@
+[potential]
+family = "analytical"
+form = "double_morse"
+backend = "numpy"
+cutoff = 8.0
+
+# Double Morse keeps two Morse wells plus a constant shift.
+# Parameter order:
+#   E1, a1, r1, E2, a2, r2, delta
+initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.50, 0.0]

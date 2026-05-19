@@ -206,8 +206,9 @@ a.navbar-brand.logo {
 }
 
 .ff-example-button {
-    display: grid;
-    gap: 0.35rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
     padding: 1rem 1.1rem;
     border-radius: 18px;
     background: #ffffff;
@@ -216,6 +217,24 @@ a.navbar-brand.logo {
     text-decoration: none;
     color: var(--ff-ink);
     transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.ff-example-button__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    flex: 0 0 auto;
+    border-radius: 14px;
+    background: rgba(161, 98, 7, 0.12);
+    color: var(--ff-accent);
+    font-size: 1.05rem;
+}
+
+.ff-example-button__text {
+    display: grid;
+    gap: 0.25rem;
 }
 
 .ff-example-button strong {
@@ -237,6 +256,10 @@ a.navbar-brand.logo {
 /* hide download buttons in example headers
  * https://sphinx-gallery.github.io/stable/advanced.html#hide-the-download-buttons-in-the-example-headers
  */
+div.dropdown-download-buttons {
+    display: none !important;
+}
+
 div.sphx-glr-download-link-note {
     display: none;
 }

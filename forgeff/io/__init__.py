@@ -96,6 +96,15 @@ def read_potential(filename: str):
             return ADPData(**data)
         if {"phi_values", "rho_values", "emb_values"} <= data.keys():
             return EAMData(**data)
+        if {"params", "info", "kwargs"} <= data.keys():
+            ase_data = ASEData(
+                calculator_kwargs=data.get("kwargs", {}),
+                calculator_name=data.get("kwargs", {}).get("calculator_name", "numpy"),
+            )
+            ase_data.parameters = np.asarray(data.get("params", []), dtype=float)
+            ase_data.parameter_info = data.get("info", {})
+            ase_data.optimized = list(ase_data.parameter_info)
+            return ase_data
         if "calculator_name" in data:
             return ASEData(**data)
         return data

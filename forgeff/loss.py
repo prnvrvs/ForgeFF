@@ -46,6 +46,78 @@ def _calc_errors_from_diff(diff: np.ndarray) -> dict[str, float]:
     }
 
 
+def _format_error_value(value: float) -> str:
+    if np.isnan(value):
+        return "nan"
+    if np.isposinf(value):
+        return "inf"
+    if np.isneginf(value):
+        return "-inf"
+    return f"{value:.6g}"
+
+
+def format_error_statistics(errors: dict[str, dict[str, float]]) -> str:
+    """Format error statistics as a compact ASCII table."""
+    rows: list[tuple[str, int, float, float, float]] = []
+    for label, key, scale in [
+        ("Energy (eV)", "energy", 1.0),
+        ("Energy per atom (eV/atom)", "energy_per_atom", 1.0),
+        ("Forces per component (eV/angstrom)", "forces", 1.0),
+        ("Stress per component (GPa)", "stress", eV * 1e21),
+        ("Magnetic gradient (eV/mu_B)", "mgrad", 1.0),
+    ]:
+        stats = errors.get(key, {})
+        count = int(stats.get("N", 0))
+        if key == "mgrad" and not count:
+            continue
+        if not stats:
+            continue
+        rows.append(
+            (
+                label,
+                count,
+                float(stats["MAX"]) * scale,
+                float(stats["ABS"]) * scale,
+                float(stats["RMS"]) * scale,
+            )
+        )
+
+    headers = ["Metric", "Count", "MAX", "ABS", "RMS"]
+    table_rows = [
+        [label, str(count), _format_error_value(maxv), _format_error_value(absv), _format_error_value(rmsv)]
+        for label, count, maxv, absv, rmsv in rows
+    ]
+
+    widths = [len(header) for header in headers]
+    for row in table_rows:
+        widths[0] = max(widths[0], len(row[0]))
+        for i in range(1, len(headers)):
+            widths[i] = max(widths[i], len(row[i]))
+
+    def border() -> str:
+        return "+" + "+".join("-" * (width + 2) for width in widths) + "+"
+
+    def render(row: list[str]) -> str:
+        return (
+            "| "
+            + " | ".join(
+                [
+                    f"{row[0]:<{widths[0]}}",
+                    f"{row[1]:>{widths[1]}}",
+                    f"{row[2]:>{widths[2]}}",
+                    f"{row[3]:>{widths[3]}}",
+                    f"{row[4]:>{widths[4]}}",
+                ]
+            )
+            + " |"
+        )
+
+    lines = ["Error statistics:", border(), render(headers), border()]
+    lines.extend(render(row) for row in table_rows)
+    lines.append(border())
+    return "\n".join(lines)
+
+
 class LossFunctionEnergy:
     """Energy contribution to the loss function."""
 
@@ -663,43 +735,7 @@ class ErrorPrinter:
         if not master:
             return errors
 
-        key0 = "energy"
-        logger.info("Energy (eV):")
-        logger.info("    Errors checked for %s configurations", errors[key0]["N"])
-        for key1 in ["MAX", "ABS", "RMS"]:
-            logger.info("    %s error: %s", key1, errors[key0][key1])
-        logger.info("")
-
-        key0 = "energy_per_atom"
-        logger.info("Energy per atom (eV/atom):")
-        logger.info("    Errors checked for %s configurations", errors[key0]["N"])
-        for key1 in ["MAX", "ABS", "RMS"]:
-            logger.info("    %s error: %s", key1, errors[key0][key1])
-        logger.info("")
-
-        key0 = "forces"
-        logger.info("Forces per component (eV/angstrom):")
-        logger.info("    Errors checked for %s atoms", errors[key0]["N"] // 3)
-        for key1 in ["MAX", "ABS", "RMS"]:
-            logger.info("    %s error: %s", key1, errors[key0][key1])
-        logger.info("")
-
-        key0 = "stress"
-        logger.info("Stress per component (GPa):")
-        logger.info("    Errors checked for %s configurations", errors[key0]["N"] // 9)
-        for key1 in ["MAX", "ABS", "RMS"]:
-            logger.info("    %s error: %s", key1, errors[key0][key1] * eV * 1e21)
-        logger.info("")
-
-        if self.idcs_mgr.size == 0:
-            return errors
-
-        key0 = "mgrad"
-        logger.info("Magnetic gradient (eV/mu_B):")
-        logger.info("    Errors checked for %s configurations", errors[key0]["N"])
-        for key1 in ["MAX", "ABS", "RMS"]:
-            logger.info("    %s error: %s", key1, errors[key0][key1])
-        logger.info("")
+        logger.info("%s", format_error_statistics(errors))
 
         return errors
 

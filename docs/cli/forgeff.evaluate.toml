@@ -3,4 +3,4 @@ initial = 'initial.cfg'  # {'.cfg', '.xyz'}
 final = 'final.cfg'  # {'.cfg', '.xyz'}
 
 [potentials]
-final = 'final.toml'
+final = 'final.npy'

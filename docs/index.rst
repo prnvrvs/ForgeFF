@@ -48,9 +48,10 @@ If you are opening the docs for the first time, the easiest path is:
 
 1. Install the package.
 2. Read :doc:`toml` to see what goes in the file.
-3. Open :doc:`examples/toml` to see a concrete example.
-4. Check :doc:`examples/analytical` if you want a built-in pair form.
+3. Open :doc:`example` to see the runnable Python walkthroughs.
+4. Open :doc:`analytical` if you want a built-in pair form.
 5. Come back to :doc:`calculators` when you want to see which backend runs it.
+6. Open :doc:`toml` for the TOML schema.
 
 Quick links
 -----------
@@ -61,11 +62,18 @@ If you want the shortest route into the package, start here:
 
 * :doc:`installation`
 * :doc:`example`
+* :doc:`analytical`
 * :doc:`theory`
 * :doc:`performance`
 * :doc:`toml`
-* :doc:`credit`
 * :doc:`calculators`
+* :doc:`cli/index`
+* :doc:`api/index`
+* :doc:`optimizers/index`
+* :doc:`loss`
+* :doc:`io`
+* :doc:`credit`
+* :doc:`maintainer`
 
 Learning path
 -------------
@@ -74,10 +82,18 @@ If you are new to the codebase, read these in order:
 
 1. :doc:`installation`
 2. :doc:`example`
-3. :doc:`theory`
-4. :doc:`performance`
-5. :doc:`toml`
-6. :doc:`calculators`
+3. :doc:`analytical`
+4. :doc:`theory`
+5. :doc:`performance`
+6. :doc:`toml`
+7. :doc:`calculators`
+8. :doc:`cli/index`
+9. :doc:`api/index`
+10. :doc:`optimizers/index`
+11. :doc:`loss`
+12. :doc:`io`
+13. :doc:`credit`
+14. :doc:`maintainer`
 
 Reference
 ---------
@@ -87,6 +103,7 @@ Reference
 
    installation
    example
+   analytical
    theory
    performance
    toml

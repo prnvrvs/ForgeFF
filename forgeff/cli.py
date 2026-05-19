@@ -3,6 +3,7 @@
 import argparse
 import logging
 
+import forgeff.error.cli
 import forgeff.evaluate.cli
 import forgeff.grade.cli
 import forgeff.train.cli
@@ -22,6 +23,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     commands = {
+        "error": forgeff.error.cli,
         "train": forgeff.train.cli,
         "evaluate": forgeff.evaluate.cli,
         "grade": forgeff.grade.cli,
@@ -36,3 +38,7 @@ def main() -> None:
         return
 
     commands[args.command].run(args)
+
+
+if __name__ == "__main__":
+    main()

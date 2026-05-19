@@ -1,0 +1,51 @@
+[potential]
+family = "adp"
+form = "alloy"
+backend = "numba"
+potential_name = "Al-Cu tabulated ADP example"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+rho = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+
+[pair.AlAl]
+values = [0.00, -0.04, -0.02, -0.01, -0.005, 0.00]
+
+[pair.AlCu]
+values = [0.00, -0.03, -0.015, -0.008, -0.004, 0.00]
+
+[pair.CuCu]
+values = [0.00, -0.02, -0.010, -0.006, -0.003, 0.00]
+
+[density.Al]
+values = [1.10, 0.75, 0.45, 0.25, 0.12, 0.05]
+
+[density.Cu]
+values = [1.05, 0.70, 0.40, 0.22, 0.10, 0.04]
+
+[embedding.Al]
+values = [0.00, -0.18, -0.32, -0.42, -0.50, -0.58]
+
+[embedding.Cu]
+values = [0.00, -0.16, -0.30, -0.40, -0.48, -0.55]
+
+[dipole.AlAl]
+values = [0.00, 0.01, 0.01, 0.005, 0.003, 0.00]
+
+[dipole.AlCu]
+values = [0.00, 0.01, 0.008, 0.004, 0.002, 0.00]
+
+[dipole.CuCu]
+values = [0.00, 0.008, 0.006, 0.003, 0.002, 0.00]
+
+[quadrupole.AlAl]
+values = [0.00, 0.02, 0.015, 0.008, 0.004, 0.00]
+
+[quadrupole.AlCu]
+values = [0.00, 0.018, 0.012, 0.007, 0.003, 0.00]
+
+[quadrupole.CuCu]
+values = [0.00, 0.016, 0.010, 0.006, 0.003, 0.00]

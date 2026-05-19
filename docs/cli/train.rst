@@ -4,6 +4,8 @@
 This command trains the potential starting from ``potentials.initial`` based on
 ``configurations.training``.
 The trained potential is written in ``potentials.final``.
+After the fit, the command automatically prints a compact error summary for
+the trained potential on the same training dataset.
 
 Usage
 -----
@@ -33,3 +35,8 @@ the potential file itself. For example:
 
 - analytical pair forms use named scalar parameters
 - tabulated EAM/ADP potentials use named term arrays
+
+See also
+--------
+
+- :doc:`error`

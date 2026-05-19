@@ -1,0 +1,10 @@
+[potential]
+family = "analytical"
+form = "morse"
+backend = "numpy"
+cutoff = 8.0
+
+# Morse is the simplest built-in pair form in the registry.
+# Parameter order:
+#   De, a, re
+initial = [0.20, 1.50, 2.75]

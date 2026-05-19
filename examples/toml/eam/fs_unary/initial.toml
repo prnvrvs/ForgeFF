@@ -1,0 +1,21 @@
+[potential]
+family = "eam"
+form = "fs"
+backend = "numba"
+potential_name = "Al single-species FS EAM example"
+
+[species]
+order = ["Al"]
+
+[grids]
+r = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+rho = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+
+[pair.AlAl]
+values = [0.00, -0.04, -0.02, -0.01, -0.005, 0.00]
+
+[density.AlAl]
+values = [1.10, 0.75, 0.45, 0.25, 0.12, 0.05]
+
+[embedding.Al]
+values = [0.00, -0.18, -0.32, -0.42, -0.50, -0.58]

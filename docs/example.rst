@@ -1,31 +1,34 @@
 Example
 =======
 
-Use these buttons to open the runnable example pages.
+There are two ways to train a potential in ForgeFF:
+
+- use the Python walkthroughs to see the workflow step by step
+- use the TOML examples to run the command-line style training setup
+
+The buttons below open the two example paths.
 
 .. raw:: html
 
    <div class="ff-example-buttons">
-      <a class="ff-example-button" href="examples/1.0_python/0.train.html">
-         <strong>Training</strong>
-         <span>Fit a potential on a training set.</span>
+      <a class="ff-example-button" href="examples/python/index.html">
+         <span class="ff-example-button__icon">P</span>
+         <span class="ff-example-button__text">
+           <strong>Python walkthroughs</strong>
+           <span>See training, evaluation, grading, and calculator usage step by step.</span>
+         </span>
       </a>
-      <a class="ff-example-button" href="examples/1.0_python/1.evaluate.html">
-         <strong>Evaluation</strong>
-         <span>Score a fitted model on held-out data.</span>
-      </a>
-      <a class="ff-example-button" href="examples/1.0_python/2.grade.html">
-         <strong>Grading</strong>
-         <span>Inspect extrapolation and fit quality.</span>
-      </a>
-      <a class="ff-example-button" href="examples/1.0_python/9.calc.html">
-         <strong>Calculator usage</strong>
-         <span>Use ForgeFF as an ASE calculator.</span>
+      <a class="ff-example-button" href="examples/toml.html">
+         <span class="ff-example-button__icon">T</span>
+         <span class="ff-example-button__text">
+           <strong>TOML examples</strong>
+           <span>Open the copyable training settings for pairwise, EAM, and ADP.</span>
+         </span>
       </a>
    </div>
 
 .. toctree::
    :hidden:
 
-   examples/analytical
+   examples/python/index
    examples/toml

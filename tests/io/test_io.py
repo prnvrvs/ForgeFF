@@ -18,7 +18,11 @@ def _current_cfg_path(_: pathlib.Path) -> pathlib.Path:
 
 
 def _example_cfg_path(_: pathlib.Path) -> pathlib.Path:
-    return _repo_root() / "examples/toml/data/training.cfg"
+    return _repo_root() / "examples/toml/data/unary/training.cfg"
+
+
+def _example_binary_cfg_path(_: pathlib.Path) -> pathlib.Path:
+    return _repo_root() / "examples/toml/data/binary/training.cfg"
 
 
 def test_read_path(data_path: pathlib.Path) -> None:
@@ -48,9 +52,20 @@ def test_read_multiple_files(data_path: pathlib.Path) -> None:
     configurations = [
         str(_current_cfg_path(data_path)),
         str(_example_cfg_path(data_path)),
+        str(_example_binary_cfg_path(data_path)),
     ]
     n_ref = sum(len(read_cfg(_, index=":")) for _ in configurations)
     assert len(read_images(configurations)) == n_ref
+
+
+def test_example_datasets_have_ten_configurations(data_path: pathlib.Path) -> None:
+    unary = forgeff.io.read(str(_example_cfg_path(data_path)), species=[13])
+    binary = forgeff.io.read(str(_example_binary_cfg_path(data_path)), species=[13, 29])
+
+    assert len(unary) == 10
+    assert len(binary) == 10
+    assert all(set(atoms.numbers) == {13} for atoms in unary)
+    assert all(set(atoms.numbers) == {13, 29} for atoms in binary)
 
 
 def test_read_ase_file(data_path: pathlib.Path, tmp_path: pathlib.Path) -> None:

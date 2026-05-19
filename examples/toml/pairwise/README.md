@@ -1,12 +1,16 @@
 # Pairwise Example
 
-This example shows two ways to define a pair potential:
+This folder now keeps one pairwise example per subfolder:
 
-- `built_in.toml`: a built-in analytical form from the registry
-- `custom_expression.toml`: an explicit user equation
+- `morse/`: the simple built-in Morse pair form
+- `double_morse/`: the two-well built-in pair form
+- `custom_expression/`: an explicit user equation
 
-The training settings in `forgeff.train.toml` point to the built-in form.
-To use the explicit expression, change `potentials.initial` accordingly.
+Each subfolder contains:
 
-The relative paths inside `forgeff.train.toml` are resolved against the
-setting file itself. The shared training input lives in `../data/training.cfg`.
+- `initial.toml`
+- `forgeff.train.toml`
+
+The relative paths inside each `forgeff.train.toml` file are resolved against
+the setting file itself. The shared training inputs live in
+`../data/unary/training.cfg` and `../data/binary/training.cfg`.

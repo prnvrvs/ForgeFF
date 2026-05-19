@@ -27,7 +27,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 default_role = "code"
 
 sphinx_gallery_conf = {
-    "filename_pattern": r"/*\.py",
+    "filename_pattern": r".*\.py$",
     "ignore_pattern": r".*/_common\.py$",
     "examples_dirs": ["../examples"],
     "gallery_dirs": ["examples"],

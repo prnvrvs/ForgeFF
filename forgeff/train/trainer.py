@@ -144,7 +144,7 @@ class Trainer:
 
 
 
-def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
+def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> LossFunctionBase:
     """Train."""
     setting = load_setting_train(filename_setting)
     if is_master(comm):
@@ -178,8 +178,9 @@ def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
         relax_magmoms=setting.common.relax_magmoms,
         comm=comm,
     )
-    trainer.train(images)
+    loss = trainer.train(images)
 
     if is_master(comm):
         logger.info("%s\n", "=" * 72)
         write_potential(setting.potentials.final, pot_data)
+    return loss

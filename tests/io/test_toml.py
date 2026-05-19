@@ -126,6 +126,58 @@ values = [0.7, 0.8, 0.9]
     np.testing.assert_allclose(data.emb_values[0], [0.7, 0.8, 0.9])
 
 
+def test_read_tabulated_fs_toml(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "fs.toml",
+        """
+[potential]
+family = "eam"
+form = "fs"
+backend = "numba"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = [0.1, 0.2, 0.3]
+rho = [0.0, 1.0, 2.0]
+
+[pair.AlAl]
+values = [0.1, 0.2, 0.3]
+
+[pair.AlCu]
+values = [0.4, 0.5, 0.6]
+
+[pair.CuCu]
+values = [0.7, 0.8, 0.9]
+
+[density.AlAl]
+values = [1.0, 1.1, 1.2]
+
+[density.AlCu]
+values = [1.3, 1.4, 1.5]
+
+[density.CuAl]
+values = [1.3, 1.4, 1.5]
+
+[density.CuCu]
+values = [1.6, 1.7, 1.8]
+
+[embedding.Al]
+values = [2.0, 2.1, 2.2]
+
+[embedding.Cu]
+values = [2.3, 2.4, 2.5]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, EAMData)
+    assert data.form == "fs"
+    assert data.backend == "numba"
+    np.testing.assert_allclose(data.rho_values[0, 1], [1.3, 1.4, 1.5])
+
+
 def test_read_tabulated_adp_toml(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "adp.toml",
