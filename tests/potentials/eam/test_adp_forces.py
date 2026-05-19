@@ -62,6 +62,33 @@ def test_adp_forces_alloy():
     atoms.calc = make_calculator(pot_data, engine='numba')
     verify_forces(atoms)
 
+
+def test_adp_write_roundtrip_uses_dataclass_state(tmp_path):
+    pot_data = ADPData()
+    pot_data.species = [13]
+    pot_data.r_grid = np.linspace(0.1, 6.0, 10)
+    pot_data.rho_grid = np.linspace(0.0, 15.0, 10)
+    pot_data.initialize(np.random.default_rng(7))
+
+    filename = tmp_path / "adp.npy"
+    pot_data.write(filename)
+
+    loaded = np.load(filename, allow_pickle=True).item()
+    assert "optimized" in loaded
+    assert "_species" in loaded
+    assert "calculate" not in loaded
+
+
+def test_adp_fs_runtime_is_rejected_explicitly():
+    pot_data = ADPData(form="fs")
+    pot_data.species = [13, 29]
+    pot_data.r_grid = np.linspace(0.1, 6.0, 10)
+    pot_data.rho_grid = np.linspace(0.0, 15.0, 10)
+    pot_data.initialize(np.random.default_rng(7))
+
+    with pytest.raises(NotImplementedError, match="Finnis-Sinclair"):
+        make_calculator(pot_data, engine='numba')
+
 if __name__ == "__main__":
     test_adp_forces_pure()
     test_adp_forces_alloy()

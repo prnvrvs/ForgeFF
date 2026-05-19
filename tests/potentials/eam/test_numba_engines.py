@@ -79,6 +79,21 @@ def test_ase_eam_jacobian_matches_numba_finite_difference() -> None:
     np.testing.assert_allclose(ase_jac, numba_jac, rtol=1e-6, atol=1e-6)
 
 
+def test_numba_eam_force_and_stress_jacobians_are_available() -> None:
+    atoms = bulk("Al", "fcc", a=20.0)[:1]
+    data = _make_eam_data()
+
+    numba_engine = NumbaEAMEngine(data)
+
+    force_jac = numba_engine.jac_forces(atoms).parameters
+    stress_jac = numba_engine.jac_stress(atoms).parameters
+
+    assert force_jac.shape == (data.number_of_parameters_optimized, len(atoms), 3)
+    assert stress_jac.shape == (data.number_of_parameters_optimized, 3, 3)
+    assert np.all(np.isfinite(force_jac))
+    assert np.all(np.isfinite(stress_jac))
+
+
 def test_numba_adp_matches_eam_when_angular_terms_are_zero() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (4, 4, 4)
     eam_data = _make_eam_data()

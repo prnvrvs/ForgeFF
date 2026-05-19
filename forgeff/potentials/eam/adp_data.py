@@ -1,7 +1,7 @@
 """ADP data for semi-empirical forcefields."""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -87,7 +87,7 @@ class ADPData(EAMData):
 
     def write(self, filename: str | Path) -> None:
         """Write the potential to a NumPy archive."""
-        np.save(filename, self.__dict__, allow_pickle=True)
+        np.save(filename, asdict(self), allow_pickle=True)
 
     @classmethod
     def from_file(cls, filename: str | Path) -> "ADPData":

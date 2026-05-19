@@ -51,6 +51,9 @@ For ADP, the current engine is:
 
 - ``numba``: Numba-accelerated ADP engine
 
+The ADP runtime currently follows the alloy-style density layout. Finnis-
+Sinclair ADP is not exposed as a supported runtime mode yet.
+
 Example:
 
 .. code-block:: python

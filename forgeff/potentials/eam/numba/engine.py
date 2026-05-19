@@ -12,7 +12,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 from ase.calculators.calculator import Calculator, all_changes
-from ase.stress import full_3x3_to_voigt_6_stress
+from ase.stress import full_3x3_to_voigt_6_stress, voigt_6_to_full_3x3_stress
 from ase.neighborlist import neighbor_list
 from ase import Atoms
 from forgeff.potentials.eam.data import EAMData
@@ -231,35 +231,64 @@ class NumbaEAMEngine:
         self.eam_data = eam_data
         self._build_splines()
 
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return numerical derivatives of energy, forces, and stress.
+
+        The EAM Numba engine still does not expose closed-form Jacobians for
+        forces or stress, so we keep the finite-difference fallback local to
+        the engine.
+        """
+        orig_params = np.asarray(self.eam_data.parameters, dtype=float).copy()
+        nprm = orig_params.size
+        natoms = len(atoms)
+        d_energy = np.zeros(nprm, dtype=float)
+        d_forces = np.zeros((nprm, natoms, 3), dtype=float)
+        d_stress = np.zeros((nprm, 3, 3), dtype=float)
+
+        try:
+            for i in range(nprm):
+                p_plus = orig_params.copy()
+                p_plus[i] += delta
+                self.eam_data.parameters = p_plus
+                self.update(self.eam_data)
+                plus = self.calculate(atoms)
+
+                p_minus = orig_params.copy()
+                p_minus[i] -= delta
+                self.eam_data.parameters = p_minus
+                self.update(self.eam_data)
+                minus = self.calculate(atoms)
+
+                scale = 1.0 / (2.0 * delta)
+                d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_forces[i] = (plus["forces"] - minus["forces"]) * scale
+                if "stress" in plus and "stress" in minus:
+                    plus_stress = np.asarray(plus["stress"], dtype=float)
+                    minus_stress = np.asarray(minus["stress"], dtype=float)
+                    if plus_stress.shape == (6,):
+                        plus_stress = voigt_6_to_full_3x3_stress(plus_stress)
+                    if minus_stress.shape == (6,):
+                        minus_stress = voigt_6_to_full_3x3_stress(minus_stress)
+                    d_stress[i] = (plus_stress - minus_stress) * scale
+        finally:
+            self.eam_data.parameters = orig_params
+            self.update(self.eam_data)
+
+        return d_energy, d_forces, d_stress
+
     def jac_energy(self, atoms: Atoms) -> SimpleNamespace:
         """Numerical Jacobian for energy."""
-        dx = 1e-6
-        params = self.eam_data.parameters
-        jac = np.zeros(len(params))
-        
-        orig_params = params.copy()
-        
-        for i in range(len(params)):
-            # Forward
-            p_plus = orig_params.copy()
-            p_plus[i] += dx
-            self.eam_data.parameters = p_plus
-            self.update(self.eam_data)
-            e_plus = self.calculate(atoms)["energy"]
-            
-            # Backward
-            p_minus = orig_params.copy()
-            p_minus[i] -= dx
-            self.eam_data.parameters = p_minus
-            self.update(self.eam_data)
-            e_minus = self.calculate(atoms)["energy"]
-            
-            jac[i] = (e_plus - e_minus) / (2.0 * dx)
-            
-        # Restore original parameters
-        self.eam_data.parameters = orig_params
-        self.update(self.eam_data)
-        
+        jac, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_forces(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for forces."""
+        _, jac, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_stress(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for stress."""
+        _, _, jac = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def calculate(self, atoms: Atoms) -> dict:

@@ -54,7 +54,8 @@ Here is the short version of what each part means:
   - ``adp``: tabulated EAM plus angular corrections
 - ``form`` says which flavor inside the family you want.
   - for analytical pair potentials, this is the equation name
-  - for EAM and ADP, this is usually ``alloy`` or ``fs``
+  - for EAM, this is usually ``alloy`` or ``fs``
+  - for ADP, the current runtime layout follows the alloy-style density form
 - ``species`` fixes the order of elements in the tables.
 - ``grids`` holds the x-axes for tabulated functions.
 - term blocks hold the actual numbers or formulas.

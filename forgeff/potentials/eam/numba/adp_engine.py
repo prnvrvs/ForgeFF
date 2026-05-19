@@ -182,6 +182,11 @@ class NumbaADPEngine:
         self.rho = pot_data.rho_grid
         self.dr = self.r[1] - self.r[0]
         self.drho = self.rho[1] - self.rho[0]
+        self.form = getattr(pot_data, "form", "alloy")
+        if self.form == "fs":
+            raise NotImplementedError(
+                "ADP Finnis-Sinclair mode is not supported in the Numba engine yet."
+            )
 
         self._emb_coeffs = np.ascontiguousarray(
             CubicSpline(self.rho, pot_data.emb_values, axis=-1).c
