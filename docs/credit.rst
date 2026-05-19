@@ -50,7 +50,7 @@ If you want a potfit-like workflow in Python, the path is simple:
 - use TOML to define the potential family and the initial guess
 - use tabulated EAM/ADP for alloy fitting
 - use built-in analytical forms or user-defined expressions for pair terms
-- use the Numba backend where available for speed
+- use the Numba engine where available for speed
 
 If you are looking for the original potfit project, ForgeFF is best described
 as a Python package that follows that style and credits that design lineage.

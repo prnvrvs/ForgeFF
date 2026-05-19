@@ -26,7 +26,7 @@ Options
   ``final.toml``.
 - ``dataset``: one or more structure files to evaluate, for example ``.cfg``
   or ``.traj`` files.
-- ``--engine``: backend name. For public examples, use ``numpy`` or ``numba``.
+- ``--engine``: engine name. For public examples, use ``numpy`` or ``numba``.
 - ``--species``: optional atomic-number order for ``.cfg`` files that do not
   carry species labels.
 

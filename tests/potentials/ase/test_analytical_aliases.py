@@ -19,7 +19,7 @@ from forgeff.potentials.ase.numba_pair import NumbaPairPotential
         ("zero", "0.0", [], []),
     ],
 )
-def test_builtin_aliases_match_custom_expression(
+def test_builtin_forms_match_analytical_expression(
     form: str,
     expression: str,
     parameter_names: list[str],

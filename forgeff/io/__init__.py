@@ -93,20 +93,28 @@ def read_potential(filename: str):
     if filename.endswith(".npy"):
         data = np.load(filename, allow_pickle=True).item()
         if "dipole_values" in data or "quadrupole_values" in data:
+            data = dict(data)
+            backend = data.pop("backend", None)
+            if "engine" not in data and backend is not None:
+                data["engine"] = backend
             return ADPData(**data)
         if {"phi_values", "rho_values", "emb_values"} <= data.keys():
+            data = dict(data)
+            backend = data.pop("backend", None)
+            if "engine" not in data and backend is not None:
+                data["engine"] = backend
             return EAMData(**data)
         if {"params", "info", "kwargs"} <= data.keys():
+            kwargs = dict(data.get("kwargs", {}))
+            engine = kwargs.pop("engine", "numpy")
             ase_data = ASEData(
-                calculator_kwargs=data.get("kwargs", {}),
-                calculator_name=data.get("kwargs", {}).get("calculator_name", "numpy"),
+                calculator_kwargs=kwargs,
+                engine=engine,
             )
             ase_data.parameters = np.asarray(data.get("params", []), dtype=float)
             ase_data.parameter_info = data.get("info", {})
             ase_data.optimized = list(ase_data.parameter_info)
             return ase_data
-        if "calculator_name" in data:
-            return ASEData(**data)
         return data
 
     raise ValueError(f"Unsupported potential format: {filename}")

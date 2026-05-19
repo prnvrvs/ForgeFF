@@ -27,7 +27,7 @@ Each case below is shown as:
          <span class="ff-example-button__icon">P</span>
          <span class="ff-example-button__text">
            <strong>Pairwise examples</strong>
-           <span>Morse, double Morse, and custom expressions.</span>
+           <span>Morse, double Morse, and analytical expressions.</span>
          </span>
       </a>
       <a class="ff-example-button" href="#eam">

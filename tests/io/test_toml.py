@@ -25,7 +25,6 @@ def test_read_custom_builtin_form_toml(tmp_path: Path) -> None:
 [potential]
 family = "analytical"
 form = "double_morse"
-backend = "custom"
 cutoff = 8.0
 initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
 """.lstrip(),
@@ -33,7 +32,7 @@ initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
 
     data = read_potential(str(path))
     assert isinstance(data, ASEData)
-    assert data.calculator_name == "numpy"
+    assert data.engine == "numpy"
     assert data.number_of_parameters_optimized == 7
     np.testing.assert_allclose(
         data.parameters,
@@ -51,45 +50,6 @@ initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
     ]
 
 
-def test_read_custom_legacy_alias_toml(tmp_path: Path) -> None:
-    path = _write_text(
-        tmp_path / "custom_legacy.toml",
-        """
-[potential]
-family = "custom"
-form = "double_morse"
-calculator_name = "custom"
-cutoff = 8.0
-initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
-""".lstrip(),
-    )
-
-    data = read_potential(str(path))
-    assert isinstance(data, ASEData)
-    assert data.backend == "numpy"
-    assert data.number_of_parameters_optimized == 7
-
-
-def test_read_custom_numba_backend_toml(tmp_path: Path) -> None:
-    path = _write_text(
-        tmp_path / "custom_numba.toml",
-        """
-[potential]
-family = "analytical"
-form = "morse"
-backend = "numba"
-cutoff = 8.0
-initial = [0.5, 2.0, 2.8]
-""".lstrip(),
-    )
-
-    data = read_potential(str(path))
-    assert isinstance(data, ASEData)
-    assert data.backend == "numba"
-    assert data.calculator_name == "numba"
-    assert data.number_of_parameters_optimized == 3
-
-
 def test_read_tabulated_eam_toml(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "eam.toml",
@@ -97,7 +57,6 @@ def test_read_tabulated_eam_toml(tmp_path: Path) -> None:
 [potential]
 family = "eam"
 form = "alloy"
-backend = "numpy"
 
 [species]
 order = ["Al"]
@@ -120,7 +79,7 @@ values = [0.7, 0.8, 0.9]
     data = read_potential(str(path))
     assert isinstance(data, EAMData)
     assert data.species_count == 1
-    assert data.backend == "numpy"
+    assert data.engine == "numpy"
     np.testing.assert_allclose(data.phi_values[0, 0], [0.1, 0.2, 0.3])
     np.testing.assert_allclose(data.rho_values[0, 0], [0.4, 0.5, 0.6])
     np.testing.assert_allclose(data.emb_values[0], [0.7, 0.8, 0.9])
@@ -133,7 +92,6 @@ def test_read_tabulated_fs_toml(tmp_path: Path) -> None:
 [potential]
 family = "eam"
 form = "fs"
-backend = "numba"
 
 [species]
 order = ["Al", "Cu"]
@@ -174,7 +132,7 @@ values = [2.3, 2.4, 2.5]
     data = read_potential(str(path))
     assert isinstance(data, EAMData)
     assert data.form == "fs"
-    assert data.backend == "numba"
+    assert data.engine == "numba"
     np.testing.assert_allclose(data.rho_values[0, 1], [1.3, 1.4, 1.5])
 
 
@@ -185,7 +143,6 @@ def test_read_tabulated_adp_toml(tmp_path: Path) -> None:
 [potential]
 family = "adp"
 form = "alloy"
-backend = "numba"
 
 [species]
 order = ["Al"]
@@ -213,7 +170,7 @@ values = [1.3, 1.4, 1.5]
 
     data = read_potential(str(path))
     assert isinstance(data, ADPData)
-    assert data.backend == "numba"
+    assert data.engine == "numba"
     np.testing.assert_allclose(data.dipole_values[0, 0], [1.0, 1.1, 1.2])
     np.testing.assert_allclose(data.quadrupole_values[0, 0], [1.3, 1.4, 1.5])
 

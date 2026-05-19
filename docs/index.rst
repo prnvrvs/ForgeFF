@@ -34,7 +34,7 @@ ForgeFF
     </div>
      <div class="ff-feature-card">
        <span class="ff-feature-card__eyebrow">Runtime</span>
-       <strong>NumPy and Numba backends</strong>
+       <strong>NumPy and Numba engines</strong>
        <span>Fast evaluation for tabulated and built-in forms.</span>
      </div>
      <div class="ff-feature-card">
@@ -50,7 +50,7 @@ If you are opening the docs for the first time, the easiest path is:
 2. Read :doc:`toml` to see what goes in the file.
 3. Open :doc:`example` to see the runnable Python walkthroughs.
 4. Open :doc:`analytical` if you want a built-in pair form.
-5. Come back to :doc:`calculators` when you want to see which backend runs it.
+5. Come back to :doc:`calculators` when you want to see which engine runs it.
 6. Open :doc:`toml` for the TOML schema.
 
 Quick links

@@ -42,14 +42,14 @@ def _assert_calculation_runs(atoms: Atoms, calc) -> None:
     assert np.all(np.isfinite(stress))
 
 
-def _compare_backend_outputs(path: Path, atoms: Atoms, backend_a: str, backend_b: str) -> None:
+def _compare_engine_outputs(path: Path, atoms: Atoms, engine_a: str, engine_b: str) -> None:
     pot_a = read_potential(str(path))
-    pot_a.backend = backend_a
+    pot_a.engine = engine_a
     pot_b = read_potential(str(path))
-    pot_b.backend = backend_b
+    pot_b.engine = engine_b
 
-    calc_a = make_calculator(pot_a, engine=backend_a)
-    calc_b = make_calculator(pot_b, engine=backend_b)
+    calc_a = make_calculator(pot_a, engine=engine_a)
+    calc_b = make_calculator(pot_b, engine=engine_b)
 
     atoms_a = atoms.copy()
     atoms_a.calc = calc_a
@@ -70,8 +70,8 @@ def _compare_backend_outputs(path: Path, atoms: Atoms, backend_a: str, backend_b
 )
 def test_pairwise_builtin_examples_match_on_unary_and_binary(path: str) -> None:
     full_path = _repo_root() / path
-    _compare_backend_outputs(full_path, _al_supercell(), "numpy", "numba")
-    _compare_backend_outputs(full_path, _binary_al_cu_cell(), "numpy", "numba")
+    _compare_engine_outputs(full_path, _al_supercell(), "numpy", "numba")
+    _compare_engine_outputs(full_path, _binary_al_cu_cell(), "numpy", "numba")
 
 
 def test_pairwise_custom_example_runs_on_unary_and_binary() -> None:
@@ -84,12 +84,12 @@ def test_pairwise_custom_example_runs_on_unary_and_binary() -> None:
 
 def test_eam_alloy_example_matches_on_unary() -> None:
     path = _repo_root() / "examples/toml/eam/alloy/initial.toml"
-    _compare_backend_outputs(path, _al_supercell(), "numpy", "numba")
+    _compare_engine_outputs(path, _al_supercell(), "numpy", "numba")
 
 
 def test_eam_alloy_binary_example_matches_on_binary() -> None:
     path = _repo_root() / "examples/toml/eam/alloy_binary/initial.toml"
-    _compare_backend_outputs(path, _binary_al_cu_cell(), "numpy", "numba")
+    _compare_engine_outputs(path, _binary_al_cu_cell(), "numpy", "numba")
 
 
 def test_eam_fs_example_matches_on_binary() -> None:

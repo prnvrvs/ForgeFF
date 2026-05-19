@@ -1,7 +1,6 @@
 [potential]
 family = "eam"
 form = "fs"
-backend = "numba"
 potential_name = "Al single-species FS EAM example"
 
 [species]

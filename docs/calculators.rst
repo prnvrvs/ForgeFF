@@ -31,7 +31,7 @@ Supported engines
 EAM
 ~~~
 
-For EAM, the following backends are currently wired:
+For EAM, the following engines are currently wired:
 
 - ``numpy``: NumPy-backed EAM engine
 - ``numba``: Numba-accelerated EAM engine
@@ -47,7 +47,7 @@ Example:
 ADP
 ~~~
 
-For ADP, the current backend is:
+For ADP, the current engine is:
 
 - ``numba``: Numba-accelerated ADP engine
 
@@ -62,7 +62,7 @@ Example:
 Tersoff
 ~~~~~~~
 
-For Tersoff-style many-body potentials, the current backend is:
+For Tersoff-style many-body potentials, the current engine is:
 
 - ``numba``: Numba-accelerated Tersoff engine
 
@@ -77,10 +77,10 @@ Example:
 Analytical pair potentials and direct ASE calculators
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For analytical pair potentials, ForgeFF uses the pair backend selected by
-``backend``.
+For analytical pair potentials, ForgeFF uses the pair engine selected by
+``engine``.
 
-The supported backend names are:
+The supported engine names are:
 
 - ``numpy``: Python-backed analytical evaluation
 - ``numba``: JIT-backed analytical evaluation
@@ -109,7 +109,7 @@ Jacobians are still incomplete:
   Jacobians
 
 This is enough for evaluation and for current smoke-test fitting workflows,
-but it is not yet a full analytical-gradient implementation for every backend.
+but it is not yet a full analytical-gradient implementation for every engine.
 
 Related pages
 -------------

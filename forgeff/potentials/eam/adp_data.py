@@ -93,4 +93,7 @@ class ADPData(EAMData):
     def from_file(cls, filename: str | Path) -> "ADPData":
         """Load the potential from a NumPy archive."""
         data = np.load(filename, allow_pickle=True).item()
+        if "backend" in data and "engine" not in data:
+            data = dict(data)
+            data["engine"] = data.pop("backend")
         return cls(**data)

@@ -1,6 +1,5 @@
 [potential]
 family = "analytical"
-backend = "numpy"
 expression = "A*(exp(-2*a*(r-r0)) - 2*exp(-a*(r-r0))) + B/r**12"
 parameter_names = ["A", "a", "r0", "B"]
 cutoff = 8.0

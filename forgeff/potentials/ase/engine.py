@@ -16,7 +16,7 @@ class GenericASEEngine:
 
     def _init_calculator(self):
         """Instantiate the ASE calculator."""
-        name = self.ase_data.calculator_name
+        name = self.ase_data.engine
         
         # Try some common mappings
         mappings = {
@@ -27,10 +27,8 @@ class GenericASEEngine:
             "MorsePotential": ("ase.calculators.morse", "MorsePotential"),
             "CustomPairPotential": ("forgeff.potentials.ase.custom", "CustomPairPotential"),
             "numpy": ("forgeff.potentials.ase.custom", "CustomPairPotential"),
-            "custom": ("forgeff.potentials.ase.custom", "CustomPairPotential"),
             "NumbaPairPotential": ("forgeff.potentials.ase.numba_pair", "NumbaPairPotential"),
             "numba": ("forgeff.potentials.ase.numba_pair", "NumbaPairPotential"),
-            "numba_pair": ("forgeff.potentials.ase.numba_pair", "NumbaPairPotential"),
         }
         
         module_path = mappings.get(name)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import warnings
 from typing import Any
 
 import numpy as np
@@ -195,25 +196,28 @@ def _check_coverage(
 
 
 def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEData:
-    backend = str(potential.get("backend", potential.get("calculator_name", "numpy")))
-    backend_alias = backend.lower()
-    if backend_alias in {"analytical", "custom", "custompairpotential"}:
-        backend = "numpy"
-        backend_alias = "numpy"
+    engine = str(potential.get("engine", "numpy"))
+    engine_alias = engine.lower()
     calculator_kwargs = {}
     if "expression" in potential:
-        if backend_alias == "numba":
-            raise ValueError("Custom analytical expressions require backend='numpy'.")
+        if engine_alias == "numba":
+            warnings.warn(
+                "Custom analytical expressions do not support engine='numba'; falling back to engine='numpy'.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            engine = "numpy"
+            engine_alias = "numpy"
         calculator_kwargs["expression"] = potential["expression"]
     elif "form" in potential:
         spec = get_form_spec(str(potential["form"]))
         calculator_kwargs["form"] = str(potential["form"])
         calculator_kwargs.setdefault("parameter_names", spec["params"])
-        if backend_alias == "numpy":
+        if engine_alias == "numpy":
             calculator_kwargs["expression"] = spec["formula"]
             calculator_kwargs.setdefault("variable", spec.get("variable", "r"))
-        elif backend_alias != "numba":
-            raise ValueError(f"Unknown analytical backend {backend!r}. Use 'numpy' or 'numba'.")
+        elif engine_alias != "numba":
+            raise ValueError(f"Unknown analytical engine {engine!r}. Use 'numpy' or 'numba'.")
     for key in ("parameter_names", "variable", "cutoff", "rc"):
         if key in potential:
             calculator_kwargs[key] = potential[key]
@@ -231,7 +235,7 @@ def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEDat
         raise ValueError("Length of 'initial' must match 'parameter_names'.")
 
     ase_data = ASEData(
-        calculator_name=str(backend),
+        engine=str(engine),
         calculator_kwargs=calculator_kwargs,
     )
     for idx, name in enumerate(parameter_names):
@@ -396,28 +400,17 @@ def read_potential_toml(filename: str | Path):
 
     potential = data.get("potential", {})
     family = str(potential.get("family", "")).lower()
-    backend = str(potential.get("backend", potential.get("calculator_name", "numpy")))
-    backend_alias = backend.lower()
-    if backend_alias in {"custom", "analytical"}:
-        backend_alias = "numpy"
-        backend = "numpy"
+    form = str(potential.get("form", "alloy")).lower()
+    default_engine = "numba" if family == "adp" or (family == "eam" and form == "fs") else "numpy"
+    engine = str(potential.get("engine", default_engine))
+    engine_alias = engine.lower()
 
     if family in {"eam", "adp"}:
         result = _populate_eam_arrays(data, potential, family=family)
-        backend_value = str(potential.get("backend", ""))
-        if backend_value:
-            result.backend = "numpy" if backend_value.lower() == "ase" else backend_value
-        else:
-            result.backend = "numpy" if family == "eam" else "numba"
+        result.engine = engine
         return result
 
-    if family in {"custom", "ase", "analytical"} or backend_alias in {
-        "numpy",
-        "numba",
-        "numba_pair",
-        "CustomPairPotential",
-        "NumbaPairPotential",
-    }:
+    if family == "analytical" or engine_alias in {"numpy", "numba"}:
         return _read_custom_toml(data, potential)
 
     # Infer family from the presence of ADP-only tables or EAM tables.
@@ -428,5 +421,5 @@ def read_potential_toml(filename: str | Path):
 
     raise ValueError(
         "Could not infer TOML potential family. "
-        "Set [potential].family to 'custom', 'eam', or 'adp'."
+        "Set [potential].family to 'analytical', 'eam', or 'adp'."
     )

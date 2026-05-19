@@ -1,7 +1,6 @@
 [potential]
 family = "adp"
 form = "alloy"
-backend = "numba"
 potential_name = "Al-Cu tabulated ADP example"
 
 [species]

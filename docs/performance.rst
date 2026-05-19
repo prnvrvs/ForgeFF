@@ -64,7 +64,7 @@ ADP scaling
 
    ASE vs Numba evaluation time for the NIST Al-Cu ADP potential evaluated on pure Al.
 
-ADP has more angular work than EAM, so the Numba backend gains more from
+ADP has more angular work than EAM, so the Numba engine gains more from
 avoiding Python-level overhead. That makes the speed gap more visible as the
 number of atoms increases.
 

@@ -13,7 +13,16 @@ author = "Pranav Kumar"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+import os
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+os.environ.setdefault(
+    "MESONPY_EDITABLE_SKIP",
+    str(ROOT / "build" / f"cp{sys.version_info.major}{sys.version_info.minor}"),
+)
 
 extensions = [
     "sphinx.ext.autodoc",

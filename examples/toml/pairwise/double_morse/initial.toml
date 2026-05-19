@@ -1,7 +1,6 @@
 [potential]
 family = "analytical"
 form = "double_morse"
-backend = "numpy"
 cutoff = 8.0
 
 # Double Morse keeps two Morse wells plus a constant shift.

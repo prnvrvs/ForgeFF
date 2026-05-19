@@ -13,7 +13,6 @@ from forgeff.potentials.tersoff.data import TersoffData
 
 _EAM_ENGINES = {
     "numpy": "forgeff.potentials.eam.numpy.engine.ASEAMEngine",
-    "ase": "forgeff.potentials.eam.numpy.engine.ASEAMEngine",
     "numba": "forgeff.potentials.eam.numba.engine.NumbaEAMEngine",
 }
 
@@ -33,7 +32,7 @@ _ASE_ENGINES = {
 def make_eam_engine(
     engine: str = "numpy",
 ) -> type:
-    """Return the engine class for the given backend name."""
+    """Return the engine class for the given engine name."""
     import importlib
 
     if engine not in _EAM_ENGINES:
@@ -45,7 +44,7 @@ def make_eam_engine(
 def make_adp_engine(
     engine: str = "numba",
 ) -> type:
-    """Return the engine class for the given backend name."""
+    """Return the engine class for the given engine name."""
     import importlib
 
     if engine not in _ADP_ENGINES:
@@ -57,7 +56,7 @@ def make_adp_engine(
 def make_tersoff_engine(
     engine: str = "numba",
 ) -> type:
-    """Return the engine class for the given Tersoff backend name."""
+    """Return the engine class for the given Tersoff engine name."""
     import importlib
 
     if engine not in _TERSOFF_ENGINES:
@@ -69,7 +68,7 @@ def make_tersoff_engine(
 def make_ase_engine(
     engine: str = "generic",
 ) -> type:
-    """Return the engine class for the given backend name."""
+    """Return the engine class for the given engine name."""
     import importlib
 
     if engine not in _ASE_ENGINES:
@@ -91,7 +90,7 @@ def make_calculator(
     pot_data : Any
         Potential data.
     engine : str
-        Backend name (``"cext"``, ``"numba"``, etc.).
+        Engine name (``"cext"``, ``"numba"``, etc.).
     mode : str
         Operation mode.
     **kwargs

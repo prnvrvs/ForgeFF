@@ -1,7 +1,6 @@
 [potential]
 family = "eam"
 form = "alloy"
-backend = "numpy"
 potential_name = "Al-Cu alloy EAM example"
 
 [species]

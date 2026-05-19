@@ -14,14 +14,14 @@ class ASEData:
     
     Attributes
     ----------
-    calculator_name : str
-        The name of the ASE calculator backend (e.g., 'custom', 'numba_pair').
+    engine : str
+        The name of the calculator engine (e.g., 'numpy', 'numba').
     calculator_kwargs : dict
         Arguments to pass to the calculator constructor.
     parameters_map : dict
         Mapping from parameter names to their metadata (shape, slice, etc.).
     """
-    calculator_name: str = ""
+    engine: str = ""
     calculator_kwargs: Dict[str, Any] = field(default_factory=dict)
     
     # Internal storage for optimized parameters
@@ -53,15 +53,6 @@ class ASEData:
     @parameters.setter
     def parameters(self, parameters: npt.ArrayLike) -> None:
         self._parameters = np.asanyarray(parameters)
-
-    @property
-    def backend(self) -> str:
-        """Alias for the calculator backend name."""
-        return self.calculator_name
-
-    @backend.setter
-    def backend(self, value: str) -> None:
-        self.calculator_name = value
 
     @property
     def number_of_parameters_optimized(self) -> int:

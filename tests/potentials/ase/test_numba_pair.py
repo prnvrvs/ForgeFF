@@ -8,7 +8,7 @@ from forgeff.potentials.ase.forms import FORMULA_LIBRARY
 from forgeff.potentials.ase.numba_pair import NumbaPairPotential
 
 
-def test_numba_pair_matches_custom_morse() -> None:
+def test_numba_pair_matches_analytical_morse() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (2, 2, 2)
     params = {"De": 0.5, "a": 1.8, "re": 2.9}
 
@@ -33,7 +33,7 @@ def test_numba_pair_matches_custom_morse() -> None:
     np.testing.assert_allclose(numba_pair.results["stress"], custom.results["stress"], rtol=1e-12, atol=1e-12)
 
 
-def test_numba_pair_matches_custom_all_builtins() -> None:
+def test_numba_pair_matches_analytical_all_builtins() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (2, 2, 2)
 
     for form, spec in FORMULA_LIBRARY.items():

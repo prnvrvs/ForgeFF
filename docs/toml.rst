@@ -4,9 +4,10 @@ TOML Specification
 ==================
 
 ForgeFF uses TOML as the main user-facing format for potential definitions and
-training settings. The goal is to keep the file readable for humans while
-still making the potential family, term order, backend, and initial guess
-explicit for the code.
+training settings. The goal is to keep the files readable for humans while
+still making the potential family, term order, and initial guess explicit for
+the code. The runtime engine lives in the training setting file under
+``[common].engine``.
 
 This page is the authoritative reference for the ForgeFF TOML schema. For
 worked examples, see:
@@ -54,23 +55,20 @@ Here is the short version of what each part means:
 - ``form`` says which flavor inside the family you want.
   - for analytical pair potentials, this is the equation name
   - for EAM and ADP, this is usually ``alloy`` or ``fs``
-- ``backend`` says how the code should evaluate the potential when that makes
-  sense.
-  - analytical pair forms: ``numpy`` or ``numba``
-  - EAM: ``numpy`` or ``numba``
-  - ADP: ``numba``
 - ``species`` fixes the order of elements in the tables.
 - ``grids`` holds the x-axes for tabulated functions.
 - term blocks hold the actual numbers or formulas.
 - ``initial`` is the starting guess for the fit.
 
-For analytical pair potentials, ``backend`` selects the evaluator:
+The runtime engine is set in the training setting file, for example
+``examples/toml/eam/alloy/forgeff.train.toml`` uses ``[common].engine =
+"numba"``.
+
+For analytical pair potentials, the potential file itself only stores the
+formula or parameter guess:
 
 - ``numpy`` for the Python/sympy-backed path
-- ``numba`` for the JIT pair backend when the form is supported
-
-For EAM and ADP, ``backend`` is optional metadata. When present it is recorded
-with the potential and can be set to ``numpy`` or ``numba``.
+- ``numba`` for the JIT pair engine when the form is supported
 
 Path handling
 -------------
@@ -98,7 +96,6 @@ Example:
     [potential]
     family = "analytical"
     form = "double_morse"
-    backend = "numpy"
     cutoff = 8.0
     initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
 
@@ -106,8 +103,7 @@ In this example, ``double_morse`` tells ForgeFF which formula to use, and
 ``initial`` gives the first values for that formula in the same order listed on
 :doc:`analytical`.
 
-The ``backend`` can be set to ``"numba"`` when you want the faster JIT pair
-backend for supported built-in forms.
+The runtime engine is set in the matching ``forgeff.train.toml`` file.
 
 Custom expressions
 ~~~~~~~~~~~~~~~~~~
@@ -120,7 +116,6 @@ form:
 
     [potential]
     family = "analytical"
-    backend = "numpy"
     expression = "A*(exp(-2*a*(r-r0)) - 2*exp(-a*(r-r0))) + B/r**12"
     parameter_names = ["A", "a", "r0", "B"]
     cutoff = 8.0
@@ -170,7 +165,6 @@ In TOML this is the simplest alloy layout:
     [potential]
     family = "eam"
     form = "alloy"
-    backend = "numpy"
 
     [species]
     order = ["Al"]
@@ -218,8 +212,8 @@ section.
 If you want the same Finnis-Sinclair layout for a unary system, see the unary
 FS example in :doc:`examples/toml`.
 
-If you want to record the intended runtime backend, you can add a ``backend``
-field to the ``[potential]`` block as metadata, for example ``numba``.
+If you want to record the intended runtime engine, add it to the matching
+training setting file under ``[common].engine``.
 
 What the data object stores
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,7 +241,6 @@ This is the TOML layout:
     [potential]
     family = "adp"
     form = "alloy"
-    backend = "numba"
 
     [species]
     order = ["Al", "Cu"]
@@ -312,8 +305,8 @@ Practical rules
 - Keep the species order explicit so the file is readable later.
 - Use built-in analytical forms when you want a stable parameter order.
 - Use user-defined expressions when you need a one-off equation.
-- Use ``backend = "numba"`` when the supported form has a JIT path and you
-  want more speed.
+- Use ``[common].engine = "numba"`` in the training setting when the supported
+  form has a JIT path and you want more speed.
 
 See also
 --------

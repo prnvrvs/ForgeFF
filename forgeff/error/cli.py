@@ -50,7 +50,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--engine",
         default="numpy",
-        help="Calculator backend name (for example, numpy or numba).",
+        help="Calculator engine name (for example, numpy or numba).",
     )
     parser.add_argument(
         "--species",
