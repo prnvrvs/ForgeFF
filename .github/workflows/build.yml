@@ -31,15 +31,8 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 5
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - macos-15-intel
+    name: Build wheel
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
@@ -48,23 +41,18 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
-      - name: Build wheels
-        env:
-          CIBW_BUILD: "cp311-* cp312-* cp313-* cp314-*"
-          CIBW_SKIP: "*-musllinux*"
-          CIBW_TEST_COMMAND: >-
-            python -c "from forgeff.calculator import make_calculator"
-        run: python -m cibuildwheel --output-dir dist
-      - name: Upload built wheels as artifacts
+      - name: Install pypa/build
+        run: python -m pip install build
+      - name: Build wheel
+        run: python -m build --wheel --outdir dist .
+      - name: Upload built wheel as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: forgeff-${{ matrix.os }}
+          name: forgeff-wheel
           path: dist/*.whl
           retention-days: 5
   test_built_wheels:
-    name: Test built wheels on ${{ matrix.os }} / numpy=${{ matrix.numpy }}
+    name: Test built wheel on ${{ matrix.os }} / numpy=${{ matrix.numpy }}
     needs: build_wheels
     runs-on: ${{ matrix.os }}
     strategy:
@@ -87,14 +75,14 @@ jobs:
       - name: Download built wheels
         uses: actions/download-artifact@v8
         with:
-          name: forgeff-${{ matrix.os }}
+          name: forgeff-wheel
           path: dist
       - name: Install runtime NumPy and test deps
         run: |
           python -m pip install --upgrade pip
           python -m pip install "numpy${{ matrix.numpy }}" --only-binary=numba ase scipy numba jax pytest
       - name: Install built wheel
-        run: python -m pip install --no-deps dist/*cp311*.whl
+        run: python -m pip install --no-deps dist/*.whl
       - name: Run pytest
         run: |
           python -m pytest -v tests/potentials/tersoff/test_numba.py

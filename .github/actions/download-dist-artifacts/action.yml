@@ -8,18 +8,8 @@ runs:
       with:
         name: forgeff-sdist
         path: dist
-    - name: Download Ubuntu wheels
+    - name: Download wheel
       uses: actions/download-artifact@v8
       with:
-        name: forgeff-ubuntu-latest
-        path: dist
-    - name: Download ARM macOS wheels
-      uses: actions/download-artifact@v8
-      with:
-        name: forgeff-macos-latest
-        path: dist
-    - name: Download Intel macOS wheels
-      uses: actions/download-artifact@v8
-      with:
-        name: forgeff-macos-15-intel
+        name: forgeff-wheel
         path: dist
