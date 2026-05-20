@@ -5,7 +5,8 @@ from ase.build import bulk
 
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
-from forgeff.potentials.eam.numpy.engine import ASEAMEngine
+from forgeff.potentials.eam.numpy.adp_engine import NumpyADPEngine
+from forgeff.potentials.eam.numpy.engine import NumpyEAMEngine
 from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
 from forgeff.potentials.eam.numba.engine import NumbaEAMEngine
 
@@ -55,7 +56,7 @@ def test_numba_eam_matches_ase_reference() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (4, 4, 4)
     data = _make_eam_data()
 
-    ase_engine = ASEAMEngine(data)
+    ase_engine = NumpyEAMEngine(data)
     numba_engine = NumbaEAMEngine(data)
 
     ase_res = ase_engine.calculate(atoms)
@@ -70,7 +71,7 @@ def test_ase_eam_jacobian_matches_numba_finite_difference() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (2, 2, 2)
     data = _make_eam_data()
 
-    ase_engine = ASEAMEngine(data)
+    ase_engine = NumpyEAMEngine(data)
     numba_engine = NumbaEAMEngine(data)
 
     ase_jac = ase_engine.jac_energy(atoms).parameters
@@ -100,11 +101,16 @@ def test_numba_adp_matches_eam_when_angular_terms_are_zero() -> None:
     adp_data = _make_adp_data(angular=False)
 
     eam_engine = NumbaEAMEngine(eam_data)
+    numpy_adp_engine = NumpyADPEngine(adp_data)
     adp_engine = NumbaADPEngine(adp_data)
 
     eam_res = eam_engine.calculate(atoms)
+    numpy_adp_res = numpy_adp_engine.calculate(atoms)
     adp_res = adp_engine.calculate(atoms)
 
+    np.testing.assert_allclose(numpy_adp_res["energy"], eam_res["energy"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_adp_res["forces"], eam_res["forces"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_adp_res["stress"], eam_res["stress"], rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(adp_res["energy"], eam_res["energy"], rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(adp_res["forces"], eam_res["forces"], rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(adp_res["stress"], eam_res["stress"], rtol=1e-12, atol=1e-12)

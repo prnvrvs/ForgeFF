@@ -1,0 +1,19 @@
+[potential]
+family = "analytical"
+form = "morse"
+cutoff = 8.0
+
+[species]
+order = ["Al", "Cu"]
+
+[pair.AlAl]
+# Morse is the simplest built-in pair form in the registry.
+# Parameter order:
+#   De, a, re
+initial = [0.20, 1.50, 2.75]
+
+[pair.AlCu]
+initial = [0.18, 1.45, 2.80]
+
+[pair.CuCu]
+initial = [0.22, 1.60, 2.90]

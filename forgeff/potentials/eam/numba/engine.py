@@ -149,7 +149,7 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
         ti = types[i]
         tj = types[j]
         pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
-        total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, ti, tj)
+        total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, tj, ti)
 
     pair_energy = 0.5 * pair_energy_sum
     embedding_energy = 0.0
@@ -171,8 +171,8 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
         tj = types[j]
         
         scale = (_spline_deriv_2d(phi_coeffs, r, r_start, dr, ti, tj) +\
-                 d_emb[i] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, ti, tj) +\
-                 d_emb[j] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, tj, ti))
+                 d_emb[i] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, tj, ti) +\
+                 d_emb[j] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, ti, tj))
             
         fx = scale * rvec[k, 0] / r
         fy = scale * rvec[k, 1] / r

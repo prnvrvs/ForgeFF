@@ -5,7 +5,14 @@ from ase.build import bulk
 
 from forgeff.potentials.ase.custom import CustomPairPotential
 from forgeff.potentials.ase.forms import FORMULA_LIBRARY
-from forgeff.potentials.ase.numba_pair import NumbaPairPotential
+from forgeff.potentials.ase.numba_pair import PAIR_FORM_IDS, NumbaPairPotential
+
+
+def test_numba_pair_covers_all_builtin_pair_forms() -> None:
+    builtin_forms = {
+        form for form, spec in FORMULA_LIBRARY.items() if spec.get("variable", "r") == "r"
+    }
+    assert builtin_forms <= set(PAIR_FORM_IDS)
 
 
 def test_numba_pair_matches_analytical_morse() -> None:

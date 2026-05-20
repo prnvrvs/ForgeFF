@@ -21,7 +21,8 @@ def verify_forces(atoms, eps=1e-6, rtol=1e-4, atol=1e-5):
             
     np.testing.assert_allclose(f_analytical, f_numerical, rtol=rtol, atol=atol)
 
-def test_adp_forces_pure():
+@pytest.mark.parametrize("engine", ["numpy", "numba"])
+def test_adp_forces_pure(engine):
     """Test ADP analytical forces for a pure element."""
     nr = 50
     nrho = 50
@@ -39,10 +40,11 @@ def test_adp_forces_pure():
         [1.0, 2.0, -0.5]
     ], cell=[10, 10, 10], pbc=True)
     
-    atoms.calc = make_calculator(pot_data, engine='numba')
+    atoms.calc = make_calculator(pot_data, engine=engine)
     verify_forces(atoms)
 
-def test_adp_forces_alloy():
+@pytest.mark.parametrize("engine", ["numpy", "numba"])
+def test_adp_forces_alloy(engine):
     """Test ADP analytical forces for a binary alloy."""
     nr = 50
     nrho = 50
@@ -59,7 +61,7 @@ def test_adp_forces_alloy():
         [2.2, 0.8, 0.3]
     ], cell=[10, 10, 10], pbc=True)
     
-    atoms.calc = make_calculator(pot_data, engine='numba')
+    atoms.calc = make_calculator(pot_data, engine=engine)
     verify_forces(atoms)
 
 

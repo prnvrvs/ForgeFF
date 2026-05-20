@@ -26,7 +26,7 @@ class Evaluator:
     def __init__(
         self,
         pot_data: Any,
-        engine: str = "cext",
+        engine: str = "numpy",
         *,
         relax_magmoms: bool | None = None,
         comm: DummyMPIComm = world,
@@ -38,7 +38,7 @@ class Evaluator:
         pot_data : potential data
             Potential data.
         engine : str
-            Engine to use for calculations ("numpy", "numba", "jax", "cext", etc.).
+            Engine to use for calculations ("numpy", "numba", etc.).
         relax_magmoms : bool or None
             Whether to relax magnetic moments.  ``None`` uses mode-based default.
         comm : MPI.Comm
@@ -73,6 +73,7 @@ class Evaluator:
             atoms.calc = make_calculator(
                 self.pot_data,
                 engine=self.engine,
+                form=getattr(self.pot_data, "form", None),
                 relax_magmoms=self.relax_magmoms,
             )
             atoms.calc.targets = targets
@@ -120,6 +121,8 @@ def evaluate_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
 
     pot_data = read_potential(potential_file)
     pot_data.species = species
+    if hasattr(pot_data, "engine"):
+        pot_data.engine = setting.common.engine
 
     # Run evaluation
     evaluator = Evaluator(

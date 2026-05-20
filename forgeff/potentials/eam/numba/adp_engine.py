@@ -40,16 +40,15 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
         
         # ADP Dipole
         u = _spline_eval_2d(dipole_coeffs, r, r_start, dr, ti, tj)
-        mu[i, 0] += u * rvec[k, 0] / r
-        mu[i, 1] += u * rvec[k, 1] / r
-        mu[i, 2] += u * rvec[k, 2] / r
-            
+        mu[i, 0] += u * rvec[k, 0]
+        mu[i, 1] += u * rvec[k, 1]
+        mu[i, 2] += u * rvec[k, 2]
+
         # ADP Quadrupole
         w = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
-        w_r2 = w / (r * r)
         for alpha in range(3):
             for beta in range(3):
-                nu[i, alpha, beta] += w_r2 * rvec[k, alpha] * rvec[k, beta]
+                nu[i, alpha, beta] += w * rvec[k, alpha] * rvec[k, beta]
 
     pair_energy = 0.5 * pair_energy_sum
     embedding_energy = 0.0
@@ -92,62 +91,57 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
                      d_emb[i] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, tj) +\
                      d_emb[j] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, ti))
         
-        # --- Dipole Part ---
-        # Fi_dip = sum_alpha (mu_i_alpha * D_alpha - mu_j_alpha * D_rev_alpha)
-        u = _spline_eval_2d(dipole_coeffs, r, r_start, dr, ti, tj)
-        du = _spline_deriv_2d(dipole_coeffs, r, r_start, dr, ti, tj)
-        u_rev = _spline_eval_2d(dipole_coeffs, r, r_start, dr, tj, ti)
-        du_rev = _spline_deriv_2d(dipole_coeffs, r, r_start, dr, tj, ti)
-        
-        mu_i_dot_r = mu[i, 0]*rvec[k, 0] + mu[i, 1]*rvec[k, 1] + mu[i, 2]*rvec[k, 2]
-        mu_j_dot_r = mu[j, 0]*rvec[k, 0] + mu[j, 1]*rvec[k, 1] + mu[j, 2]*rvec[k, 2]
-        
-        f_dip_x = (mu_i_dot_r * (du - u/r) * rvec[k, 0]/(r*r) + (u/r)*mu[i, 0]) - \
-                  (mu_j_dot_r * (du_rev - u_rev/r) * rvec[k, 0]/(r*r) + (u_rev/r)*mu[j, 0])
-        f_dip_y = (mu_i_dot_r * (du - u/r) * rvec[k, 1]/(r*r) + (u/r)*mu[i, 1]) - \
-                  (mu_j_dot_r * (du_rev - u_rev/r) * rvec[k, 1]/(r*r) + (u_rev/r)*mu[j, 1])
-        f_dip_z = (mu_i_dot_r * (du - u/r) * rvec[k, 2]/(r*r) + (u/r)*mu[i, 2]) - \
-                  (mu_j_dot_r * (du_rev - u_rev/r) * rvec[k, 2]/(r*r) + (u_rev/r)*mu[j, 2])
+        # --- Dipole and Quadrupole Part ---
+        # Mirror the ASE angular force expression for a single neighbor pair.
+        dip = _spline_eval_2d(dipole_coeffs, r, r_start, dr, ti, tj)
+        ddip = _spline_deriv_2d(dipole_coeffs, r, r_start, dr, ti, tj)
+        quad = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
+        dquad = _spline_deriv_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
 
-        # --- Quadrupole Part ---
-        # Fi_quad = sum_alpha,beta (val_i_alpha_beta * H_alpha_beta + val_j_alpha_beta * H_rev_alpha_beta)
-        w = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
-        dw = _spline_deriv_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
-        w_rev = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, tj, ti)
-        dw_rev = _spline_deriv_2d(quadrupole_coeffs, r, r_start, dr, tj, ti)
-        
-        t_nu_i = nu[i, 0, 0] + nu[i, 1, 1] + nu[i, 2, 2]
-        t_nu_j = nu[j, 0, 0] + nu[j, 1, 1] + nu[j, 2, 2]
-        
-        dw_r2_i = (dw - 2.0*w/r) / (r*r)
-        dw_r2_j = (dw_rev - 2.0*w_rev/r) / (r*r)
-        
-        sum_i = np.zeros(3)
-        sum_j = np.zeros(3)
+        mu_diff_x = mu[i, 0] - mu[j, 0]
+        mu_diff_y = mu[i, 1] - mu[j, 1]
+        mu_diff_z = mu[i, 2] - mu[j, 2]
+        mu_diff_dot_r = mu_diff_x * rvec[k, 0] + mu_diff_y * rvec[k, 1] + mu_diff_z * rvec[k, 2]
+        trace_i = nu[i, 0, 0] + nu[i, 1, 1] + nu[i, 2, 2]
+        trace_j = nu[j, 0, 0] + nu[j, 1, 1] + nu[j, 2, 2]
+
+        f_adp_x = (mu_diff_x * dip) + (mu_diff_dot_r * ddip * rvec[k, 0] / r)
+        f_adp_y = (mu_diff_y * dip) + (mu_diff_dot_r * ddip * rvec[k, 1] / r)
+        f_adp_z = (mu_diff_z * dip) + (mu_diff_dot_r * ddip * rvec[k, 2] / r)
+
+        term3_x = 0.0
+        term3_y = 0.0
+        term3_z = 0.0
+        term4_x = 0.0
+        term4_y = 0.0
+        term4_z = 0.0
         for alpha in range(3):
+            term3_x += (nu[i, alpha, 0] + nu[j, alpha, 0]) * rvec[k, alpha]
+            term3_y += (nu[i, alpha, 1] + nu[j, alpha, 1]) * rvec[k, alpha]
+            term3_z += (nu[i, alpha, 2] + nu[j, alpha, 2]) * rvec[k, alpha]
             for beta in range(3):
-                # val = nu - 1/3 Tr(nu) delta
-                val_i = nu[i, alpha, beta]
-                if alpha == beta: val_i -= (1.0/3.0) * t_nu_i
-                
-                # H_alpha_beta_gamma = (w' - 2w/r) * r_alpha*r_beta*r_gamma/r^3 + w/r^2 * (delta_alpha_gamma*r_beta + delta_beta_gamma*r_alpha)
-                common_i = dw_r2_i * rvec[k, alpha] * rvec[k, beta] / r
-                sum_i[0] += val_i * (common_i * rvec[k, 0] + (w/(r*r)) * ((1.0 if alpha==0 else 0.0)*rvec[k, beta] + (1.0 if beta==0 else 0.0)*rvec[k, alpha]))
-                sum_i[1] += val_i * (common_i * rvec[k, 1] + (w/(r*r)) * ((1.0 if alpha==1 else 0.0)*rvec[k, beta] + (1.0 if beta==1 else 0.0)*rvec[k, alpha]))
-                sum_i[2] += val_i * (common_i * rvec[k, 2] + (w/(r*r)) * ((1.0 if alpha==2 else 0.0)*rvec[k, beta] + (1.0 if beta==2 else 0.0)*rvec[k, alpha]))
-                
-                val_j = nu[j, alpha, beta]
-                if alpha == beta: val_j -= (1.0/3.0) * t_nu_j
-                
-                common_j = dw_r2_j * rvec[k, alpha] * rvec[k, beta] / r
-                sum_j[0] += val_j * (common_j * rvec[k, 0] + (w_rev/(r*r)) * ((1.0 if alpha==0 else 0.0)*rvec[k, beta] + (1.0 if beta==0 else 0.0)*rvec[k, alpha]))
-                sum_j[1] += val_j * (common_j * rvec[k, 1] + (w_rev/(r*r)) * ((1.0 if alpha==1 else 0.0)*rvec[k, beta] + (1.0 if beta==1 else 0.0)*rvec[k, alpha]))
-                sum_j[2] += val_j * (common_j * rvec[k, 2] + (w_rev/(r*r)) * ((1.0 if alpha==2 else 0.0)*rvec[k, beta] + (1.0 if beta==2 else 0.0)*rvec[k, alpha]))
+                rs = rvec[k, alpha] * rvec[k, beta]
+                term4_x += (nu[i, alpha, beta] + nu[j, alpha, beta]) * dquad * rs * rvec[k, 0] / r
+                term4_y += (nu[i, alpha, beta] + nu[j, alpha, beta]) * dquad * rs * rvec[k, 1] / r
+                term4_z += (nu[i, alpha, beta] + nu[j, alpha, beta]) * dquad * rs * rvec[k, 2] / r
 
+        term3_x *= 2.0 * quad
+        term3_y *= 2.0 * quad
+        term3_z *= 2.0 * quad
+
+        term5_x = (trace_i + trace_j) * (dquad * r + 2.0 * quad) * rvec[k, 0] / 3.0
+        term5_y = (trace_i + trace_j) * (dquad * r + 2.0 * quad) * rvec[k, 1] / 3.0
+        term5_z = (trace_i + trace_j) * (dquad * r + 2.0 * quad) * rvec[k, 2] / 3.0
+
+        f_adp_x = f_adp_x + term3_x + term4_x - term5_x
+        f_adp_y = f_adp_y + term3_y + term4_y - term5_y
+        f_adp_z = f_adp_z + term3_z + term4_z - term5_z
+
+        w = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
         # Total force on atom i from this pair interaction
-        fx = (scale_eam * rvec[k, 0] / r + f_dip_x + sum_i[0] + sum_j[0])
-        fy = (scale_eam * rvec[k, 1] / r + f_dip_y + sum_i[1] + sum_j[1])
-        fz = (scale_eam * rvec[k, 2] / r + f_dip_z + sum_i[2] + sum_j[2])
+        fx = scale_eam * rvec[k, 0] / r + f_adp_x
+        fy = scale_eam * rvec[k, 1] / r + f_adp_y
+        fz = scale_eam * rvec[k, 2] / r + f_adp_z
         
         forces[i, 0] += fx
         forces[i, 1] += fy

@@ -29,7 +29,7 @@ class Grader:
         pot_data: Any,
         seed: int | None = None,
         rng: np.random.Generator | None = None,
-        engine: str = "cext",
+        engine: str = "numpy",
         *,
         mode: GradeMode = GradeMode.CONFIGURATION,
         maxvol_setting: MaxVolSetting | dict | None = None,
@@ -93,6 +93,7 @@ class Grader:
             atoms.calc = make_calculator(
                 self.pot_data,
                 engine=self.engine,
+                form=getattr(self.pot_data, "form", None),
                 mode="run",
                 relax_magmoms=False,
             )
@@ -222,6 +223,8 @@ def grade_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
 
     pot_data = read_potential(potential_file)
     pot_data.species = species
+    if hasattr(pot_data, "engine"):
+        pot_data.engine = setting.common.engine
 
     grader = Grader(
         pot_data,

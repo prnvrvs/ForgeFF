@@ -1,4 +1,4 @@
-"""Generic ASE Engine for forgeff."""
+"""ASE engine adapter for ForgeFF."""
 
 import importlib
 import numpy as np
@@ -8,6 +8,8 @@ from forgeff.potentials.ase.data import ASEData
 class GenericASEEngine:
     """Engine that wraps any ASE calculator."""
 
+    _DISALLOWED_CALCULATORS = {"EMT"}
+
     def __init__(self, ase_data: ASEData, mode: str = "run"):
         self.ase_data = ase_data
         self.mode = mode
@@ -16,13 +18,12 @@ class GenericASEEngine:
 
     def _init_calculator(self):
         """Instantiate the ASE calculator."""
-        name = self.ase_data.engine
-        
-        # Try some common mappings
+        name = self.ase_data.calculator_kwargs.get("calculator", self.ase_data.engine)
+
+        # Try some common mappings.
         mappings = {
             "LennardJones": ("ase.calculators.lj", "LennardJones"),
             "EAM": ("ase.calculators.eam", "EAM"),
-            "EMT": ("ase.calculators.emt", "EMT"),
             "Morse": ("ase.calculators.morse", "MorsePotential"),
             "MorsePotential": ("ase.calculators.morse", "MorsePotential"),
             "CustomPairPotential": ("forgeff.potentials.ase.custom", "CustomPairPotential"),
@@ -30,7 +31,7 @@ class GenericASEEngine:
             "NumbaPairPotential": ("forgeff.potentials.ase.numba_pair", "NumbaPairPotential"),
             "numba": ("forgeff.potentials.ase.numba_pair", "NumbaPairPotential"),
         }
-        
+
         module_path = mappings.get(name)
         if module_path:
             module, class_name = module_path
@@ -50,15 +51,37 @@ class GenericASEEngine:
                 except (ImportError, AttributeError):
                     raise ImportError(f"Could not locate ASE calculator '{name}'. "
                                     f"Please provide full path or add to mappings.")
+        if calc_class.__name__ in self._DISALLOWED_CALCULATORS:
+            raise ValueError(
+                f"ASE calculator '{calc_class.__name__}' is not supported as a fitting target in ForgeFF."
+            )
 
-        # Merge static kwargs with optimized parameters
+        # Merge static kwargs with optimized parameters.
         params = self.ase_data.get_parameter_dict()
+        if calc_class.__name__ == "MorsePotential":
+            if {"De", "a", "re"}.issubset(params):
+                params = {
+                    "epsilon": params["De"],
+                    "rho0": params["a"] * params["re"],
+                    "r0": params["re"],
+                    **{k: v for k, v in self.ase_data.calculator_kwargs.items() if k in {"rcut1", "rcut2"}},
+                }
+        elif calc_class.__name__ == "LennardJones":
+            # ASE and ForgeFF use the same parameter names for LJ.
+            pass
         # Handle 1-element arrays: convert to scalar for ASE calculators that expect floats
         for k, v in params.items():
             if isinstance(v, np.ndarray) and v.size == 1:
                 params[k] = float(v.item())
 
         kwargs = {**self.ase_data.calculator_kwargs, **params}
+        kwargs.pop("calculator", None)
+        if calc_class.__module__.startswith("ase.calculators."):
+            kwargs.pop("form", None)
+            kwargs.pop("expression", None)
+            kwargs.pop("parameter_names", None)
+            kwargs.pop("variable", None)
+            kwargs.pop("cutoff", None)
         
         self.calculator = calc_class(**kwargs)
 

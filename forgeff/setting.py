@@ -35,7 +35,7 @@ class CommonSetting(DataclassFromAny):
 
     species: list[int] = field(default_factory=list)
     seed: int | None = None
-    engine: str = "cext"
+    engine: str = "numpy"
     relax_magmoms: bool | None = None
 
 

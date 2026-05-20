@@ -1,0 +1,2 @@
+"""Template TOML generator."""
+

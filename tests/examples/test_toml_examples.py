@@ -62,24 +62,30 @@ def _compare_engine_outputs(path: Path, atoms: Atoms, engine_a: str, engine_b: s
 
 
 @pytest.mark.parametrize(
-    "path",
+    ("path", "atoms_factory"),
     [
-        "examples/toml/pairwise/morse/initial.toml",
-        "examples/toml/pairwise/double_morse/initial.toml",
+        ("examples/toml/pairwise/morse/unary/initial.toml", _al_supercell),
+        ("examples/toml/pairwise/morse/binary/initial.toml", _binary_al_cu_cell),
+        ("examples/toml/pairwise/double_morse/unary/initial.toml", _al_supercell),
+        ("examples/toml/pairwise/double_morse/binary/initial.toml", _binary_al_cu_cell),
     ],
 )
-def test_pairwise_builtin_examples_match_on_unary_and_binary(path: str) -> None:
+def test_pairwise_builtin_examples_match_on_unary_and_binary(path: str, atoms_factory) -> None:
     full_path = _repo_root() / path
-    _compare_engine_outputs(full_path, _al_supercell(), "numpy", "numba")
-    _compare_engine_outputs(full_path, _binary_al_cu_cell(), "numpy", "numba")
+    _compare_engine_outputs(full_path, atoms_factory(), "numpy", "numba")
 
 
-def test_pairwise_custom_example_runs_on_unary_and_binary() -> None:
-    path = _repo_root() / "examples/toml/pairwise/custom_expression/initial.toml"
-    pot = read_potential(str(path))
+@pytest.mark.parametrize(
+    ("path", "atoms_factory"),
+    [
+        ("examples/toml/pairwise/custom_expression/unary/initial.toml", _al_supercell),
+        ("examples/toml/pairwise/custom_expression/binary/initial.toml", _binary_al_cu_cell),
+    ],
+)
+def test_pairwise_custom_example_runs_on_unary_and_binary(path: str, atoms_factory) -> None:
+    pot = read_potential(str(_repo_root() / path))
     calc = make_calculator(pot, engine="numpy")
-    _assert_calculation_runs(_al_supercell(), calc)
-    _assert_calculation_runs(_binary_al_cu_cell(), calc)
+    _assert_calculation_runs(atoms_factory(), calc)
 
 
 def test_eam_alloy_example_matches_on_unary() -> None:
@@ -115,18 +121,40 @@ def test_adp_example_runs_on_unary_and_binary() -> None:
 
 
 def test_eam_train_settings_resolve_example_paths() -> None:
-    morse = load_setting_train(_repo_root() / "examples/toml/pairwise/morse/forgeff.train.toml")
-    double_morse = load_setting_train(_repo_root() / "examples/toml/pairwise/double_morse/forgeff.train.toml")
+    morse = load_setting_train(_repo_root() / "examples/toml/pairwise/morse/unary/forgeff.train.toml")
+    morse_binary = load_setting_train(_repo_root() / "examples/toml/pairwise/morse/binary/forgeff.train.toml")
+    double_morse = load_setting_train(_repo_root() / "examples/toml/pairwise/double_morse/unary/forgeff.train.toml")
+    double_morse_binary = load_setting_train(_repo_root() / "examples/toml/pairwise/double_morse/binary/forgeff.train.toml")
+    custom_expression = load_setting_train(
+        _repo_root() / "examples/toml/pairwise/custom_expression/unary/forgeff.train.toml"
+    )
+    custom_expression_binary = load_setting_train(
+        _repo_root() / "examples/toml/pairwise/custom_expression/binary/forgeff.train.toml"
+    )
     alloy = load_setting_train(_repo_root() / "examples/toml/eam/alloy/forgeff.train.toml")
     alloy_binary = load_setting_train(_repo_root() / "examples/toml/eam/alloy_binary/forgeff.train.toml")
     fs = load_setting_train(_repo_root() / "examples/toml/eam/fs/forgeff.train.toml")
     fs_unary = load_setting_train(_repo_root() / "examples/toml/eam/fs_unary/forgeff.train.toml")
     adp = load_setting_train(_repo_root() / "examples/toml/adp/alcu/forgeff.train.toml")
 
-    assert morse.potentials.initial.endswith("examples/toml/pairwise/morse/initial.toml")
-    assert morse.potentials.final.endswith("examples/toml/pairwise/morse/final.npy")
-    assert double_morse.potentials.initial.endswith("examples/toml/pairwise/double_morse/initial.toml")
-    assert double_morse.potentials.final.endswith("examples/toml/pairwise/double_morse/final.npy")
+    assert morse.potentials.initial.endswith("examples/toml/pairwise/morse/unary/initial.toml")
+    assert morse.potentials.final.endswith("examples/toml/pairwise/morse/unary/final.npy")
+    assert morse.common.engine == "numpy"
+    assert morse_binary.potentials.initial.endswith("examples/toml/pairwise/morse/binary/initial.toml")
+    assert morse_binary.potentials.final.endswith("examples/toml/pairwise/morse/binary/final.npy")
+    assert morse_binary.configurations.training[0].endswith("examples/toml/data/binary/training.cfg")
+    assert double_morse.potentials.initial.endswith("examples/toml/pairwise/double_morse/unary/initial.toml")
+    assert double_morse.potentials.final.endswith("examples/toml/pairwise/double_morse/unary/final.npy")
+    assert double_morse.common.engine == "numpy"
+    assert double_morse_binary.potentials.initial.endswith("examples/toml/pairwise/double_morse/binary/initial.toml")
+    assert double_morse_binary.potentials.final.endswith("examples/toml/pairwise/double_morse/binary/final.npy")
+    assert double_morse_binary.configurations.training[0].endswith("examples/toml/data/binary/training.cfg")
+    assert custom_expression.common.engine == "numpy"
+    assert custom_expression_binary.common.engine == "numpy"
+    assert custom_expression.potentials.initial.endswith("examples/toml/pairwise/custom_expression/unary/initial.toml")
+    assert custom_expression.potentials.final.endswith("examples/toml/pairwise/custom_expression/unary/final.npy")
+    assert custom_expression_binary.potentials.initial.endswith("examples/toml/pairwise/custom_expression/binary/initial.toml")
+    assert custom_expression_binary.potentials.final.endswith("examples/toml/pairwise/custom_expression/binary/final.npy")
     assert alloy.potentials.initial.endswith("examples/toml/eam/alloy/initial.toml")
     assert alloy.potentials.final.endswith("examples/toml/eam/alloy/final.npy")
     assert alloy.configurations.training[0].endswith("examples/toml/data/unary/training.cfg")

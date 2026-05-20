@@ -6,6 +6,7 @@ import logging
 import forgeff.error.cli
 import forgeff.evaluate.cli
 import forgeff.grade.cli
+import forgeff.template.cli
 import forgeff.train.cli
 
 from forgeff.parallel import world
@@ -27,6 +28,7 @@ def main() -> None:
         "train": forgeff.train.cli,
         "evaluate": forgeff.evaluate.cli,
         "grade": forgeff.grade.cli,
+        "template": forgeff.template.cli,
     }
     for key, value in commands.items():
         value.add_arguments(subparsers.add_parser(key))

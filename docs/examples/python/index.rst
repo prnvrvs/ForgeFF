@@ -27,13 +27,6 @@ These pages are the standalone tutorial examples.
            <span>Inspect extrapolation and fit quality.</span>
          </span>
       </a>
-      <a class="ff-example-button" href="9.calc.html">
-         <span class="ff-example-button__icon">C</span>
-         <span class="ff-example-button__text">
-           <strong>Calculator usage</strong>
-           <span>Use ForgeFF as an ASE calculator.</span>
-         </span>
-      </a>
    </div>
 
 Each page shows the code, the result, and a short explanation of what the
@@ -45,4 +38,3 @@ example is doing.
    /examples/python/0.train
    /examples/python/1.evaluate
    /examples/python/2.grade
-   /examples/python/9.calc

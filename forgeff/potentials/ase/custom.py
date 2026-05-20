@@ -10,7 +10,10 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.neighborlist import neighbor_list
 from ase.stress import full_3x3_to_voigt_6_stress
+from ase.data import atomic_numbers
 from sympy import Symbol, diff, lambdify, sympify
+
+from forgeff.potentials.ase.forms import evaluate_form, get_form_spec
 
 
 _RESERVED_KEYS = {
@@ -46,19 +49,30 @@ class CustomPairPotential(Calculator):
     def __init__(
         self,
         *,
-        expression: str,
+        expression: str | None = None,
         parameter_names: list[str] | tuple[str, ...] | None = None,
         variable: str = "r",
         cutoff: float | None = None,
         rc: float | None = None,
+        pair_terms: list[dict[str, Any]] | None = None,
+        species: list[int] | list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(expression=expression, parameter_names=parameter_names, variable=variable, cutoff=cutoff, rc=rc, **kwargs)
         self.expression = expression
         self.variable = variable
+        self.pair_terms = pair_terms
+        self.species = species
         self.cutoff = cutoff if cutoff is not None else rc
         if self.cutoff is None:
             raise ValueError("CustomPairPotential requires a finite 'cutoff' (or 'rc').")
+
+        if pair_terms:
+            self._init_multispecies(pair_terms, species, kwargs)
+            return
+
+        if expression is None:
+            raise ValueError("CustomPairPotential requires 'expression' unless multispecies pair terms are provided.")
 
         if parameter_names is None:
             parameter_names = [key for key in kwargs if key not in _RESERVED_KEYS]
@@ -71,6 +85,93 @@ class CustomPairPotential(Calculator):
         self._parameter_values = np.array([float(kwargs[name]) for name in self.parameter_names], dtype=float)
         self._parameter_index = {name: idx for idx, name in enumerate(self.parameter_names)}
         self._compile()
+
+    def _init_multispecies(
+        self,
+        pair_terms: list[dict[str, Any]],
+        species: list[int] | list[str] | None,
+        kwargs: dict[str, Any],
+    ) -> None:
+        if species is None:
+            raise ValueError("Multispecies pair potential requires an explicit species order.")
+        self.multispecies = True
+        self.species_numbers = np.array([atomic_numbers.get(str(item), int(item)) if not isinstance(item, int) else int(item) for item in species], dtype=np.int32)
+        self._species_index = {int(num): idx for idx, num in enumerate(self.species_numbers)}
+        self._pair_entries: list[dict[str, Any]] = []
+        self._pair_index: dict[tuple[int, int], int] = {}
+
+        for idx, term in enumerate(pair_terms):
+            term = dict(term)
+            pair_species = term["species"]
+            i, j = int(pair_species[0]), int(pair_species[1])
+            pair_key = (i, j)
+            prefix = term["prefix"]
+            parameter_names = list(term["parameter_names"])
+            values = np.array([float(kwargs[f"{prefix}_{name}"]) for name in parameter_names], dtype=float)
+            if term.get("expression") is not None:
+                compiled = self._compiled_expression(
+                    str(term["expression"]),
+                    str(term.get("variable", self.variable)),
+                    tuple(parameter_names),
+                )
+                energy_fn = compiled.energy
+                derivative_fn = compiled.derivative
+            else:
+                form = str(term["form"])
+                spec = get_form_spec(form)
+                expr = spec["formula"]
+                energy_fn = self._compiled_expression(expr, str(term.get("variable", spec.get("variable", "r"))), tuple(parameter_names)).energy
+                derivative_fn = self._compiled_expression(expr, str(term.get("variable", spec.get("variable", "r"))), tuple(parameter_names)).derivative
+            entry = {
+                "species": pair_key,
+                "values": values,
+                "energy": energy_fn,
+                "derivative": derivative_fn,
+            }
+            self._pair_entries.append(entry)
+            self._pair_index[(i, j)] = idx
+            self._pair_index[(j, i)] = idx
+
+    def _calculate_multispecies(self, atoms):
+        natoms = len(self.atoms)
+        energy = 0.0
+        forces = np.zeros((natoms, 3), dtype=float)
+        virial = np.zeros((3, 3), dtype=float)
+        local = np.zeros(natoms, dtype=float)
+
+        numbers = self.atoms.get_atomic_numbers().astype(np.int32)
+        i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
+        if len(i_list):
+            vec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
+            for idx in range(len(i_list)):
+                r = float(dist[idx])
+                if r <= 0.0:
+                    continue
+                i = int(i_list[idx])
+                j = int(j_list[idx])
+                pair_idx = self._pair_index[(int(numbers[i]), int(numbers[j]))]
+                entry = self._pair_entries[pair_idx]
+                args = (r, *entry["values"])
+                pair_energy = float(entry["energy"](*args))
+                d_v_dr = float(entry["derivative"](*args))
+                unit = vec[idx] / r
+                fij = -d_v_dr * unit
+                energy += pair_energy
+                local[i] += 0.5 * pair_energy
+                local[j] += 0.5 * pair_energy
+                forces[i] += fij
+                forces[j] -= fij
+                virial += np.outer(vec[idx], fij)
+
+        self.results["energy"] = energy
+        self.results["free_energy"] = energy
+        self.results["energies"] = local
+        self.results["forces"] = forces
+
+        if self.atoms.cell.rank == 3 and self.atoms.get_volume() != 0.0:
+            self.results["stress"] = full_3x3_to_voigt_6_stress(-virial / self.atoms.get_volume())
+        else:
+            self.results.pop("stress", None)
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -105,6 +206,10 @@ class CustomPairPotential(Calculator):
 
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):  # noqa: B006
         Calculator.calculate(self, atoms, properties, system_changes)
+
+        if getattr(self, "pair_terms", None):
+            self._calculate_multispecies(atoms)
+            return
 
         natoms = len(self.atoms)
         energy = 0.0

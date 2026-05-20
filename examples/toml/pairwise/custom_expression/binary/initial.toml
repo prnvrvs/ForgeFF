@@ -1,0 +1,17 @@
+[potential]
+family = "analytical"
+expression = "A*(exp(-2*a*(r-r0)) - 2*exp(-a*(r-r0))) + B/r**12"
+parameter_names = ["A", "a", "r0", "B"]
+cutoff = 8.0
+
+[species]
+order = ["Al", "Cu"]
+
+[pair.AlAl]
+initial = [0.04, 4.5, 2.85, 1e-4]
+
+[pair.AlCu]
+initial = [0.035, 4.3, 2.90, 1.2e-4]
+
+[pair.CuCu]
+initial = [0.045, 4.7, 2.95, 0.9e-4]

@@ -1,133 +1,330 @@
-"""ASE EAM Calculator Engine for forgeff."""
+"""NumPy reference EAM calculator.
+
+This engine evaluates the tabulated EAM splines directly with NumPy and
+SciPy, without delegating to ASE's EAM calculator.
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.eam import EAM
-from ase.data import chemical_symbols
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from types import SimpleNamespace
+from ase.neighborlist import neighbor_list
+from ase.stress import full_3x3_to_voigt_6_stress, voigt_6_to_full_3x3_stress
+from scipy.interpolate import CubicSpline
 
 from forgeff.potentials.eam.data import EAMData
 
-class ASEAMEngine:
-    """Engine that wraps ASE's EAM calculator for fitting."""
+
+def _spline_eval_1d(coeffs, x, x0, h, idx0):
+    nseg = coeffs.shape[1]
+    idx = int((x - x0) / h)
+    if idx < 0:
+        idx = 0
+    elif idx >= nseg:
+        idx = nseg - 1
+    dx = x - (x0 + idx * h)
+    return (((coeffs[0, idx, idx0] * dx + coeffs[1, idx, idx0]) * dx + coeffs[2, idx, idx0]) * dx + coeffs[3, idx, idx0])
+
+
+def _spline_eval_2d(coeffs, x, x0, h, idx0, idx1):
+    nseg = coeffs.shape[1]
+    idx = int((x - x0) / h)
+    if idx < 0:
+        idx = 0
+    elif idx >= nseg:
+        idx = nseg - 1
+    dx = x - (x0 + idx * h)
+    return (
+        (((coeffs[0, idx, idx0, idx1] * dx + coeffs[1, idx, idx0, idx1]) * dx + coeffs[2, idx, idx0, idx1]) * dx)
+        + coeffs[3, idx, idx0, idx1]
+    )
+
+
+def _spline_deriv_1d(coeffs, x, x0, h, idx0):
+    nseg = coeffs.shape[1]
+    idx = int((x - x0) / h)
+    if idx < 0:
+        idx = 0
+    elif idx >= nseg:
+        idx = nseg - 1
+    dx = x - (x0 + idx * h)
+    return 3.0 * coeffs[0, idx, idx0] * dx * dx + 2.0 * coeffs[1, idx, idx0] * dx + coeffs[2, idx, idx0]
+
+
+def _spline_deriv_2d(coeffs, x, x0, h, idx0, idx1):
+    nseg = coeffs.shape[1]
+    idx = int((x - x0) / h)
+    if idx < 0:
+        idx = 0
+    elif idx >= nseg:
+        idx = nseg - 1
+    dx = x - (x0 + idx * h)
+    return 3.0 * coeffs[0, idx, idx0, idx1] * dx * dx + 2.0 * coeffs[1, idx, idx0, idx1] * dx + coeffs[2, idx, idx0, idx1]
+
+
+def _calculate_eam_alloy(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coeffs, phi_coeffs, drho, dr, rho_start, r_start):
+    natoms = types.shape[0]
+    total_density = np.zeros(natoms)
+    pair_energy_sum = 0.0
+
+    for k in range(dist.shape[0]):
+        i = int(i_list[k])
+        j = int(j_list[k])
+        r = float(dist[k])
+        if r <= 0.0:
+            continue
+        ti = int(types[i])
+        tj = int(types[j])
+        pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
+
+    pair_energy = 0.5 * pair_energy_sum
+    embedding_energy = 0.0
+    d_emb = np.zeros(natoms)
+    for i in range(natoms):
+        ti = int(types[i])
+        d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+        embedding_energy += _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+
+    forces = np.zeros((natoms, 3))
+    stresses = np.zeros((natoms, 3, 3))
+    for k in range(dist.shape[0]):
+        i = int(i_list[k])
+        j = int(j_list[k])
+        r = float(dist[k])
+        if r <= 0.0:
+            continue
+        ti = int(types[i])
+        tj = int(types[j])
+        scale = (
+            _spline_deriv_2d(phi_coeffs, r, r_start, dr, ti, tj)
+            + d_emb[i] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, tj)
+            + d_emb[j] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, ti)
+        )
+
+        fx = scale * rvec[k, 0] / r
+        fy = scale * rvec[k, 1] / r
+        fz = scale * rvec[k, 2] / r
+        forces[i, 0] += fx
+        forces[i, 1] += fy
+        forces[i, 2] += fz
+        stresses[i, 0, 0] += fx * rvec[k, 0]
+        stresses[i, 0, 1] += fx * rvec[k, 1]
+        stresses[i, 0, 2] += fx * rvec[k, 2]
+        stresses[i, 1, 0] += fy * rvec[k, 0]
+        stresses[i, 1, 1] += fy * rvec[k, 1]
+        stresses[i, 1, 2] += fy * rvec[k, 2]
+        stresses[i, 2, 0] += fz * rvec[k, 0]
+        stresses[i, 2, 1] += fz * rvec[k, 1]
+        stresses[i, 2, 2] += fz * rvec[k, 2]
+
+    return pair_energy, embedding_energy, total_density, forces, stresses
+
+
+def _calculate_eam_fs(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coeffs, phi_coeffs, drho, dr, rho_start, r_start):
+    natoms = types.shape[0]
+    total_density = np.zeros(natoms)
+    pair_energy_sum = 0.0
+
+    for k in range(dist.shape[0]):
+        i = int(i_list[k])
+        j = int(j_list[k])
+        r = float(dist[k])
+        if r <= 0.0:
+            continue
+        ti = int(types[i])
+        tj = int(types[j])
+        pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, tj, ti)
+
+    pair_energy = 0.5 * pair_energy_sum
+    embedding_energy = 0.0
+    d_emb = np.zeros(natoms)
+    for i in range(natoms):
+        ti = int(types[i])
+        d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+        embedding_energy += _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+
+    forces = np.zeros((natoms, 3))
+    stresses = np.zeros((natoms, 3, 3))
+    for k in range(dist.shape[0]):
+        i = int(i_list[k])
+        j = int(j_list[k])
+        r = float(dist[k])
+        if r <= 0.0:
+            continue
+        ti = int(types[i])
+        tj = int(types[j])
+
+        scale = (
+            _spline_deriv_2d(phi_coeffs, r, r_start, dr, ti, tj)
+            + d_emb[i] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, tj, ti)
+            + d_emb[j] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, ti, tj)
+        )
+
+        fx = scale * rvec[k, 0] / r
+        fy = scale * rvec[k, 1] / r
+        fz = scale * rvec[k, 2] / r
+        forces[i, 0] += fx
+        forces[i, 1] += fy
+        forces[i, 2] += fz
+        stresses[i, 0, 0] += fx * rvec[k, 0]
+        stresses[i, 0, 1] += fx * rvec[k, 1]
+        stresses[i, 0, 2] += fx * rvec[k, 2]
+        stresses[i, 1, 0] += fy * rvec[k, 0]
+        stresses[i, 1, 1] += fy * rvec[k, 1]
+        stresses[i, 1, 2] += fy * rvec[k, 2]
+        stresses[i, 2, 0] += fz * rvec[k, 0]
+        stresses[i, 2, 1] += fz * rvec[k, 1]
+        stresses[i, 2, 2] += fz * rvec[k, 2]
+
+    return pair_energy, embedding_energy, total_density, forces, stresses
+
+
+class NumpyEAMEngine:
+    """NumPy/SciPy EAM calculator used as the native reference path."""
 
     def __init__(self, eam_data: EAMData, mode: str = "run"):
         self.eam_data = eam_data
         self.mode = mode
-        self.calculator = None
-        self._init_calculator()
+        self._build_splines()
 
-    def _init_calculator(self):
-        """Initialize the ASE EAM calculator using splines from eam_data."""
+    def _build_splines(self):
         eam_data = self.eam_data
-        spc = eam_data.species_count
-        elements = [
-            s if isinstance(s, str) else chemical_symbols[int(s)]
-            for s in eam_data.species
-        ]
-        
-        embedded_energy = []
-        d_embedded_energy = []
-        electron_density = []
-        d_electron_density = []
-        phi = np.empty((spc, spc), dtype=object)
-        d_phi = np.empty((spc, spc), dtype=object)
-        
-        # Alloy form: rho depends only on neighbor species
-        # FS form: rho depends on both species
-        form = getattr(eam_data, "form", "alloy")
+        self.r = eam_data.r_grid
+        self.rho = eam_data.rho_grid
+        self.dr = float(self.r[1] - self.r[0])
+        self.drho = float(self.rho[1] - self.rho[0])
+        self.form = getattr(eam_data, "form", "alloy")
 
-        for i in range(spc):
-            # Embedding energy F(rho)
-            f_spline = spline(eam_data.rho_grid, eam_data.emb_values[i], k=3)
-            embedded_energy.append(f_spline)
-            d_embedded_energy.append(f_spline.derivative())
-            
-            if form == "alloy":
-                # In Alloy form, ASE expects a 1D list of electron density functions
-                # where rho[j] is the density contribution of atom j.
-                # We use the diagonal rho_values[i, i] as the representative rho for species i.
-                rho_spline = spline(eam_data.r_grid, eam_data.rho_values[i, i], k=3)
-                electron_density.append(rho_spline)
-                d_electron_density.append(rho_spline.derivative())
-            else:
-                # FS form: rho is a 2D matrix of functions
-                row = []
-                d_row = []
-                for j in range(spc):
-                    rho_spline = spline(eam_data.r_grid, eam_data.rho_values[i, j], k=3)
-                    row.append(rho_spline)
-                    d_row.append(rho_spline.derivative())
-                electron_density.append(row)
-                d_electron_density.append(d_row)
-            
-            for j in range(i, spc):
-                # Pair potential phi(r)
-                phi_spline = spline(eam_data.r_grid, eam_data.phi_values[i, j], k=3)
-                phi[i, j] = phi[j, i] = phi_spline
-                dphi_spline = phi_spline.derivative()
-                d_phi[i, j] = d_phi[j, i] = dphi_spline
-
-        self.calculator = EAM(
-            elements=elements,
-            embedded_energy=embedded_energy,
-            d_embedded_energy=d_embedded_energy,
-            electron_density=electron_density,
-            d_electron_density=d_electron_density,
-            phi=phi,
-            d_phi=d_phi,
-            form=form,
-            cutoff=float(eam_data.r_grid[-1]),
-        )
+        self._emb_coeffs = np.ascontiguousarray(CubicSpline(self.rho, eam_data.emb_values, axis=-1).c)
+        if self.form == "fs":
+            self._dens_coeffs = np.ascontiguousarray(CubicSpline(self.r, eam_data.rho_values, axis=-1).c)
+        else:
+            self._dens_coeffs = np.ascontiguousarray(
+                CubicSpline(self.r, eam_data.rho_values.diagonal(axis1=0, axis2=1).T, axis=-1).c
+            )
+        self._phi_coeffs = np.ascontiguousarray(CubicSpline(self.r, eam_data.phi_values, axis=-1).c)
 
     def update(self, eam_data: EAMData):
-        """Update the underlying ASE calculator with new parameters."""
         self.eam_data = eam_data
-        self._init_calculator()
+        self._build_splines()
 
-    def calculate(self, atoms: Atoms) -> dict:
-        """Perform the calculation using ASE EAM."""
-        atoms.calc = self.calculator
-        energy = atoms.get_potential_energy()
-        forces = atoms.get_forces()
-        stress = atoms.get_stress()
-        
-        return {
-            "energy": energy,
-            "energies": np.array([energy / len(atoms)] * len(atoms)), # Approximation if local energies not available
-            "forces": forces,
-            "stress": stress
-        }
-    
-    def jac_energy(self, atoms: Atoms):
-        """Numerical Jacobian for energy.
+    def _species_index(self, atoms: Atoms) -> np.ndarray:
+        species = np.asarray(self.eam_data.species, dtype=np.int64)
+        mapping = {int(number): idx for idx, number in enumerate(species.tolist())}
+        indices = np.empty(len(atoms), dtype=np.int64)
+        for idx, number in enumerate(atoms.numbers.tolist()):
+            number = int(number)
+            if number not in mapping:
+                raise ValueError(
+                    f"Atom species {number} is not present in EAM species list {self.eam_data.species!r}."
+                )
+            indices[idx] = mapping[number]
+        return indices
 
-        The NumPy-backed EAM engine does not expose an analytical Jacobian,
-        so we use a symmetric finite-difference fallback over the serialized
-        parameter vector.
-        """
-        dx = 1e-6
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         orig_params = np.asarray(self.eam_data.parameters, dtype=float).copy()
-        jac = np.zeros_like(orig_params)
+        nprm = orig_params.size
+        natoms = len(atoms)
+        d_energy = np.zeros(nprm, dtype=float)
+        d_forces = np.zeros((nprm, natoms, 3), dtype=float)
+        d_stress = np.zeros((nprm, 3, 3), dtype=float)
 
         try:
-            for i in range(orig_params.size):
+            for i in range(nprm):
                 p_plus = orig_params.copy()
-                p_plus[i] += dx
+                p_plus[i] += delta
                 self.eam_data.parameters = p_plus
                 self.update(self.eam_data)
-                e_plus = self.calculate(atoms)["energy"]
+                plus = self.calculate(atoms)
 
                 p_minus = orig_params.copy()
-                p_minus[i] -= dx
+                p_minus[i] -= delta
                 self.eam_data.parameters = p_minus
                 self.update(self.eam_data)
-                e_minus = self.calculate(atoms)["energy"]
+                minus = self.calculate(atoms)
 
-                jac[i] = (e_plus - e_minus) / (2.0 * dx)
+                scale = 1.0 / (2.0 * delta)
+                d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_forces[i] = (plus["forces"] - minus["forces"]) * scale
+                if "stress" in plus and "stress" in minus:
+                    plus_stress = np.asarray(plus["stress"], dtype=float)
+                    minus_stress = np.asarray(minus["stress"], dtype=float)
+                    if plus_stress.shape == (6,):
+                        plus_stress = voigt_6_to_full_3x3_stress(plus_stress)
+                    if minus_stress.shape == (6,):
+                        minus_stress = voigt_6_to_full_3x3_stress(minus_stress)
+                    d_stress[i] = (plus_stress - minus_stress) * scale
         finally:
             self.eam_data.parameters = orig_params
             self.update(self.eam_data)
 
+        return d_energy, d_forces, d_stress
+
+    def jac_energy(self, atoms: Atoms) -> SimpleNamespace:
+        jac, _, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
+
+    def jac_forces(self, atoms: Atoms) -> SimpleNamespace:
+        _, jac, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_stress(self, atoms: Atoms) -> SimpleNamespace:
+        _, _, jac = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def calculate(self, atoms: Atoms) -> dict:
+        types = self._species_index(atoms)
+        cutoff = float(self.r[-1])
+        i_list, j_list, shifts, dist = neighbor_list("ijSd", atoms, cutoff)
+        rvec = atoms.positions[j_list] + shifts @ atoms.cell.array - atoms.positions[i_list]
+
+        if self.form == "fs":
+            pair_energy, embedding_energy, total_density, forces, stresses = _calculate_eam_fs(
+                types,
+                i_list.astype(np.int64),
+                j_list.astype(np.int64),
+                dist.astype(np.float64),
+                rvec.astype(np.float64),
+                self._emb_coeffs,
+                self._dens_coeffs,
+                self._phi_coeffs,
+                float(self.drho),
+                float(self.dr),
+                float(self.rho[0]),
+                float(self.r[0]),
+            )
+        else:
+            pair_energy, embedding_energy, total_density, forces, stresses = _calculate_eam_alloy(
+                types,
+                i_list.astype(np.int64),
+                j_list.astype(np.int64),
+                dist.astype(np.float64),
+                rvec.astype(np.float64),
+                self._emb_coeffs,
+                self._dens_coeffs,
+                self._phi_coeffs,
+                float(self.drho),
+                float(self.dr),
+                float(self.rho[0]),
+                float(self.r[0]),
+            )
+
+        energy = pair_energy + embedding_energy
+        results = {
+            "energy": energy,
+            "energies": np.full(len(atoms), energy / len(atoms) if len(atoms) else 0.0, dtype=float),
+            "forces": forces,
+        }
+        if atoms.cell.rank == 3:
+            stress_tensor = 0.5 * np.sum(stresses, axis=0) / atoms.get_volume()
+            results["stress"] = full_3x3_to_voigt_6_stress(stress_tensor)
+        return results
+
+
+# Backward-compatible alias. Keep the old name alive while the native NumPy
+# engine becomes the public path.
+ASEAMEngine = NumpyEAMEngine

@@ -6,7 +6,7 @@
 
 Computation times
 =================
-**02:56.895** total execution time for 4 files **from all galleries**:
+**02:56.891** total execution time for 3 files **from all galleries**:
 
 .. container::
 
@@ -40,7 +40,4 @@ Computation times
      - 0.0
    * - :ref:`sphx_glr_examples_python_1.evaluate.py` (``../examples/python/1.evaluate.py``)
      - 00:49.685
-     - 0.0
-   * - :ref:`sphx_glr_examples_python_9.calc.py` (``../examples/python/9.calc.py``)
-     - 00:00.004
      - 0.0

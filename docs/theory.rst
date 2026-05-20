@@ -155,6 +155,29 @@ The practical hierarchy is:
 - FS EAM: more general EAM with pair-dependent density functions
 - ADP: EAM plus angular corrections
 
+Stillinger-Weber
+-----------------
+
+Stillinger-Weber is a three-body potential with a pair term and a triplet
+term. In its common form, the energy is written as:
+
+.. math::
+
+    E = \sum_{i < j} \phi_{\alpha_i \alpha_j}(r_{ij})
+        + \sum_{i < j < k} \lambda_{\alpha_i \alpha_j \alpha_k}
+          \, g(r_{ij})\, g(r_{ik})\, h(\theta_{jik})
+
+The pair part controls the two-body attraction and repulsion, while the
+three-body term penalizes bond-angle distortions. In ForgeFF’s current SW
+layout:
+
+- each unique species pair has its own pair parameter block
+- each ordered species triple has its own lambda block
+- the runtime engine is native ForgeFF ``numpy`` or ``numba``
+
+This matches the potfit-style multispecies organization used by the parser and
+the example templates.
+
 Extrapolation grading
 ---------------------
 

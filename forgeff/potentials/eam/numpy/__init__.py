@@ -1,5 +1,6 @@
 """NumPy/SciPy-backed EAM calculator."""
 
-from .engine import ASEAMEngine
+from .engine import ASEAMEngine, NumpyEAMEngine
+from .adp_engine import NumpyADPEngine
 
-__all__ = ["ASEAMEngine"]
+__all__ = ["NumpyEAMEngine", "ASEAMEngine", "NumpyADPEngine"]

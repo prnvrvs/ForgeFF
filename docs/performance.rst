@@ -1,27 +1,32 @@
 Performance
 ===========
 
-ForgeFF includes two evaluation paths for tabulated semi-empirical models:
+ForgeFF includes evaluation paths for several semi-empirical models:
 
-- the NumPy-backed ASE EAM path
-- the Numba-accelerated EAM and ADP paths
+- the matscipy-reference Stillinger-Weber path
+- the ASE reference path for EAM and ADP
+- the ForgeFF NumPy and ForgeFF Numba paths for SW, EAM, and ADP
 
-This page shows how they behave as the system size grows for pure Al.
-The benchmark uses the NIST reference files already shipped with the repo:
+This page shows how they behave as the system size grows for reference
+benchmark systems. The benchmark uses the reference files already shipped with
+the repo:
 
 - :download:`Al99.eam.alloy <../tests/data_path/nist/Al99.eam.alloy>`
+- :download:`Fe_H_Kumar2023.eam.fs <../tests/data_path/nist/Fe_H_Kumar2023.eam.fs>`
 - :download:`AlCu.adp <../tests/data_path/nist/AlCu.adp>`
+- matscipy Stillinger-Weber parameters are embedded directly in the benchmark
+  script for a pure Si diamond test case
 
 How the benchmark is measured
 -----------------------------
 
-The benchmark script builds fcc Al supercells with increasing size,
-evaluates each calculator several times, and reports the median runtime
-per configuration.
+The benchmark scripts build reference supercells with increasing size,
+evaluate each calculator several times, and report the median runtime per
+configuration.
 
-The script uses conventional cubic Al cells and starts from a moderately
-large supercell so the plot reflects the calculator scaling instead of
-small-cell neighbor-list binning artifacts.
+The EAM alloy benchmark uses conventional cubic Al cells. The EAM FS benchmark
+uses a distorted BCC Fe-H cell. The ADP benchmark uses conventional cubic Al
+cells. The SW benchmark uses a diamond Si supercell.
 
 The important point is not the exact millisecond count. The point is the
 trend:
@@ -41,19 +46,48 @@ One important caveat for the plotted data:
 So the kink in the curve is not a Numba algorithm regression. It is a
 neighbor-list binning threshold.
 
-EAM scaling
------------
+Stillinger-Weber scaling
+------------------------
 
-.. figure:: _static/performance/eam_runtime.png
+.. figure:: _static/performance/sw_runtime.png
    :align: center
-   :alt: EAM runtime comparison on pure Al
+   :alt: Stillinger-Weber runtime comparison against matscipy
 
-   ASE vs Numba evaluation time for the NIST Al EAM potential.
+   matscipy reference vs ForgeFF NumPy and ForgeFF Numba evaluation time for the Si SW potential.
 
-For EAM, the ASE-backed NumPy path is a good reference, and the Numba path
-reduces evaluation time as the system size grows. On very small cells, the
-gap is small because overhead dominates. On larger Al supercells, the Numba
-path pulls ahead more clearly.
+This benchmark compares ForgeFF's NumPy and Numba Stillinger-Weber engines
+against the matscipy many-body reference implementation on a diamond Si
+supercell. The goal is to show that ForgeFF can match the reference physics
+while moving the inner loops into compiled code.
+
+EAM alloy scaling
+------------------
+
+.. figure:: _static/performance/eam_alloy_runtime.png
+   :align: center
+   :alt: EAM alloy runtime comparison on pure Al
+
+   ASE vs ForgeFF NumPy and ForgeFF Numba evaluation time for the NIST Al EAM alloy
+   potential.
+
+For EAM alloy, the ASE path is the external reference, ForgeFF's NumPy path is
+the native bridge, and the Numba path reduces evaluation time as the system
+size grows. On very small cells, the gap is small because overhead dominates.
+On larger Al supercells, the Numba path pulls ahead more clearly.
+
+EAM FS scaling
+--------------
+
+.. figure:: _static/performance/eam_fs_runtime.png
+   :align: center
+   :alt: EAM FS runtime comparison on distorted Fe-H
+
+   ASE vs ForgeFF NumPy and ForgeFF Numba evaluation time for the NIST Fe-H EAM FS
+   potential.
+
+The same three-way comparison is shown for the Finnis-Sinclair layout. The
+benchmark uses a distorted BCC Fe-H cell so the runtime path exercises the FS
+density tables.
 
 ADP scaling
 -----------
@@ -62,11 +96,11 @@ ADP scaling
    :align: center
    :alt: ADP runtime comparison on pure Al
 
-   ASE vs Numba evaluation time for the NIST Al-Cu ADP potential evaluated on pure Al.
+   ASE vs ForgeFF NumPy and ForgeFF Numba evaluation time for the NIST Al-Cu ADP potential evaluated on pure Al.
 
-ADP has more angular work than EAM, so the Numba engine gains more from
-avoiding Python-level overhead. That makes the speed gap more visible as the
-number of atoms increases.
+ADP has more angular work than EAM, so both the NumPy and Numba ForgeFF
+engines gain more from avoiding Python-level overhead. That makes the speed
+gap more visible as the number of atoms increases.
 
 How to regenerate the plots
 ---------------------------
@@ -75,7 +109,8 @@ Run the benchmark script from the repo root:
 
 .. code-block:: bash
 
+   python benchmarks/speed_sw.py
    python benchmarks/speed_eam_adp.py
 
-The script writes the plots and the raw timing data to
+The scripts write the plots and the raw timing data to
 ``docs/_static/performance/``.

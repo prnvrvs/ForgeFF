@@ -31,7 +31,7 @@ class Trainer:
         pot_data: Any,
         seed: int | None = None,
         rng: np.random.Generator | None = None,
-        engine: str = "cext",
+        engine: str = "numpy",
         loss: dict | LossSetting | None = None,
         steps: list[dict] | None = None,
         *,
@@ -167,6 +167,8 @@ def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> LossFunctio
 
     pot_data = read_potential(untrained_potential)
     pot_data.species = species
+    if hasattr(pot_data, "engine"):
+        pot_data.engine = setting.common.engine
 
     trainer = Trainer(
         pot_data,

@@ -1,5 +1,8 @@
 name: TestPyPI Release
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:

@@ -103,30 +103,50 @@ The CLI prints the same compact error table:
 Pairwise examples
 -----------------
 
+These examples show the engine selection in the training setting file. The
+current runnable pairwise examples are split into unary and binary folders:
+
+- ``morse/unary`` and ``morse/binary``
+- ``double_morse/unary`` and ``double_morse/binary``
+- ``custom_expression/unary`` and ``custom_expression/binary``
+
+The detailed snippets below use the unary examples, and the binary siblings
+follow the same folder structure with the binary training dataset.
+
+Both unary and binary pairwise examples use explicit per-pair blocks. Unary
+examples have a single ``[pair.AlAl]`` block, while the binary examples add
+``[pair.AlCu]`` and ``[pair.CuCu]`` so each species combination can be fitted
+independently.
+
+For binary and higher-order pairwise fits, you can also define one
+``[pair.<species><species>]`` block per species pair and keep the common form
+at the top level. That layout is supported for the ForgeFF-native ``numpy``
+and ``numba`` paths.
+
 Morse
 ~~~~~
 
 Initial TOML:
 
-.. literalinclude:: ../../examples/toml/pairwise/morse/initial.toml
+.. literalinclude:: ../../examples/toml/pairwise/morse/unary/initial.toml
    :language: toml
 
 Training setting:
 
-.. literalinclude:: ../../examples/toml/pairwise/morse/forgeff.train.toml
+.. literalinclude:: ../../examples/toml/pairwise/morse/unary/forgeff.train.toml
    :language: toml
 
 Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/morse/forgeff.train.toml
+   python examples/toml/train.py --setting examples/toml/pairwise/morse/unary/forgeff.train.toml
 
 Output:
 
 .. code-block:: text
 
-   Training setting: examples/toml/pairwise/morse/forgeff.train.toml
+   Training setting: examples/toml/pairwise/morse/unary/forgeff.train.toml
    Time (step 0: minimize): 17.765608499990776 (s)
    Error statistics:
    +------------------------------------+-------+------------+------------+------------+
@@ -144,25 +164,25 @@ Double Morse
 
 Initial TOML:
 
-.. literalinclude:: ../../examples/toml/pairwise/double_morse/initial.toml
+.. literalinclude:: ../../examples/toml/pairwise/double_morse/unary/initial.toml
    :language: toml
 
 Training setting:
 
-.. literalinclude:: ../../examples/toml/pairwise/double_morse/forgeff.train.toml
+.. literalinclude:: ../../examples/toml/pairwise/double_morse/unary/forgeff.train.toml
    :language: toml
 
 Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/double_morse/forgeff.train.toml
+   python examples/toml/train.py --setting examples/toml/pairwise/double_morse/unary/forgeff.train.toml
 
 Output:
 
 .. code-block:: text
 
-   Training setting: examples/toml/pairwise/double_morse/forgeff.train.toml
+   Training setting: examples/toml/pairwise/double_morse/unary/forgeff.train.toml
    Time (step 0: minimize): 10.154842459014617 (s)
    Error statistics:
    +------------------------------------+-------+-----------+------------+------------+
@@ -180,25 +200,25 @@ Custom expression
 
 Initial TOML:
 
-.. literalinclude:: ../../examples/toml/pairwise/custom_expression/initial.toml
+.. literalinclude:: ../../examples/toml/pairwise/custom_expression/unary/initial.toml
    :language: toml
 
 Training setting:
 
-.. literalinclude:: ../../examples/toml/pairwise/custom_expression/forgeff.train.toml
+.. literalinclude:: ../../examples/toml/pairwise/custom_expression/unary/forgeff.train.toml
    :language: toml
 
 Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/custom_expression/forgeff.train.toml
+   python examples/toml/train.py --setting examples/toml/pairwise/custom_expression/unary/forgeff.train.toml
 
 Output:
 
 .. code-block:: text
 
-   Training setting: examples/toml/pairwise/custom_expression/forgeff.train.toml
+   Training setting: examples/toml/pairwise/custom_expression/unary/forgeff.train.toml
    Time (step 0: minimize): 7.512485041981563 (s)
    Error statistics:
    +------------------------------------+-------+-----------+------------+------------+

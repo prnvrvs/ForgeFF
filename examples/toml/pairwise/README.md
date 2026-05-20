@@ -1,16 +1,25 @@
-# Pairwise Example
+# Pairwise Examples
 
-This folder now keeps one pairwise example per subfolder:
+This folder keeps one pairwise example family per subfolder, and each family
+has a unary and binary variant:
 
-- `morse/`: the simple built-in Morse pair form
-- `double_morse/`: the two-well built-in pair form
-- `custom_expression/`: an explicit user equation
+- `morse/unary/`
+- `morse/binary/`
+- `double_morse/unary/`
+- `double_morse/binary/`
+- `custom_expression/unary/`
+- `custom_expression/binary/`
 
-Each subfolder contains:
+Each leaf folder contains:
 
 - `initial.toml`
 - `forgeff.train.toml`
 
+The unary variants use a single `[pair.AlAl]` block. The binary variants add
+`[pair.AlCu]` and `[pair.CuCu]` so each combination can be fitted
+independently.
+
 The relative paths inside each `forgeff.train.toml` file are resolved against
-the setting file itself. The shared training inputs live in
-`../data/unary/training.cfg` and `../data/binary/training.cfg`.
+the setting file itself. From each leaf folder, the shared training inputs
+resolve to `../../../data/unary/training.cfg` and
+`../../../data/binary/training.cfg`.

@@ -119,6 +119,29 @@ a.navbar-brand.logo {
     border-color: rgba(161, 98, 7, 0.55);
 }
 
+.ff-engine-label {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.ff-engine-label--matscipy {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+}
+
+.ff-engine-label--forgeff-numpy {
+    background: rgba(5, 150, 105, 0.12);
+    color: #047857;
+}
+
+.ff-engine-label--forgeff-numba {
+    background: rgba(161, 98, 7, 0.12);
+    color: #a16207;
+}
+
 .ff-card-grid,
 .ff-feature-strip {
     margin: 1.25rem 0 2rem;

@@ -15,6 +15,33 @@ worked examples, see:
 - :doc:`examples/toml`
 - :doc:`example`
 
+If you want a starter file, ``forgeff template`` can generate a valid TOML
+template for analytical, EAM, ADP, or Stillinger-Weber potentials.
+
+Template generation
+-------------------
+
+The template command keeps the potential file small and readable while giving
+you a valid starting point for each family:
+
+.. code-block:: bash
+
+   forgeff template analytical --species Al Cu --form morse
+   forgeff template eam --species Fe Ni --form alloy
+   forgeff template adp --species Al Cu
+   forgeff template sw --species Si
+
+Use ``--output`` when you want the template written to a file instead of
+printed to the terminal:
+
+.. code-block:: bash
+
+   forgeff template analytical --species Al Cu --form morse --output initial.toml
+
+The generated file is only the potential definition. The matching
+``forgeff.train.toml`` still carries ``[common].engine`` and the rest of the
+runtime settings.
+
 The example set includes unary and binary layouts for the supported families:
 
 - pairwise: unary and binary
@@ -33,6 +60,7 @@ The TOML schema supports three potential families:
 - analytical pair potentials
 - tabulated EAM potentials
 - tabulated ADP potentials
+- Stillinger-Weber potentials
 
 The general structure is:
 
@@ -52,10 +80,12 @@ Here is the short version of what each part means:
   - ``analytical``: one formula per term
   - ``eam``: tabulated embedded-atom model
   - ``adp``: tabulated EAM plus angular corrections
+  - ``sw``: Stillinger-Weber potential
 - ``form`` says which flavor inside the family you want.
   - for analytical pair potentials, this is the equation name
   - for EAM, this is usually ``alloy`` or ``fs``
   - for ADP, the current runtime layout follows the alloy-style density form
+  - for SW, the standard unary parameter layout is used
 - ``species`` fixes the order of elements in the tables.
 - ``grids`` holds the x-axes for tabulated functions.
 - term blocks hold the actual numbers or formulas.
@@ -65,11 +95,68 @@ The runtime engine is set in the training setting file, for example
 ``examples/toml/eam/alloy/forgeff.train.toml`` uses ``[common].engine =
 "numba"``.
 
-For analytical pair potentials, the potential file itself only stores the
-formula or parameter guess:
+If the file format is ambiguous, use an explicit format hint, just like ASE.
 
+For analytical pair potentials, the potential file only stores the formula or
+parameter guess:
+
+- ``ASE`` for direct ASE calculators when the built-in form has an ASE
+  counterpart
 - ``numpy`` for the Python/sympy-backed path
 - ``numba`` for the JIT pair engine when the form is supported
+
+For tabulated EAM and ADP potentials, the runtime engine is set separately in
+the training setting file. EAM supports ``ASE``, **ForgeFF NumPy**, and
+**ForgeFF Numba**. ADP supports **ForgeFF NumPy** and **ForgeFF Numba**.
+
+Stillinger-Weber
+-----------------
+
+ForgeFF also supports a native Stillinger-Weber potential family with a
+potfit-style multispecies layout. The potential file defines the species order
+and then provides one pair block per unique species pair plus one lambda block
+per center/neighbor triple:
+
+.. code-block:: toml
+
+    [potential]
+    family = "sw"
+    costheta0 = 0.3333333333333333
+
+    [species]
+    order = ["Al", "Cu"]
+
+    [pair.AlAl]
+    initial = [1.0, 2.0, 3.0, 0.0, 4.0, 5.0, 6.0, 7.0]
+
+    [pair.AlCu]
+    initial = [1.1, 2.1, 3.1, 0.0, 4.1, 5.1, 6.1, 7.1]
+
+    [pair.CuCu]
+    initial = [1.2, 2.2, 3.2, 0.0, 4.2, 5.2, 6.2, 7.2]
+
+    [lambda.AlAlAl]
+    initial = [0.1]
+
+    [lambda.AlAlCu]
+    initial = [0.2]
+
+    [lambda.AlCuCu]
+    initial = [0.3]
+
+    [lambda.CuAlAl]
+    initial = [0.4]
+
+    [lambda.CuAlCu]
+    initial = [0.5]
+
+    [lambda.CuCuCu]
+    initial = [0.6]
+
+The matching ``forgeff.train.toml`` then sets ``[common].engine`` to either
+``numpy`` or ``numba``. The public rule is the same as the other native
+families: ``numpy`` for the reference implementation and ``numba`` for the
+accelerated path.
 
 Path handling
 -------------
@@ -223,6 +310,133 @@ What the data object stores
 - ``rho_values`` holds the density tables. For alloy EAM this is one density
   curve per species; for Finnis-Sinclair it is a full species-pair matrix.
 - ``emb_values`` holds the embedding tables.
+
+Analytical multispecies layouts
+-------------------------------
+
+ForgeFF also supports analytical expressions in place of sampled tables for
+the EAM terms. The layout stays explicit, but the values are generated from a
+formula instead of loaded from a dense grid.
+
+For a multispecies pairwise setup, define one block per species pair and keep
+the shared form at the top level. The explicit ``[species].order`` list tells
+ForgeFF how to map the pair names to atom types.
+
+The current pairwise TOML layout supports this pattern for built-in analytical
+forms such as ``lj`` and ``morse``. Direct ``ASE`` fitting remains a single
+global calculator and is not used for per-pair multispecies fits.
+If ``engine = "ASE"`` is requested for an analytical form that ASE does not
+implement, ForgeFF warns and falls back to the ForgeFF-native ``numpy`` path.
+Multispecies pairwise fits with ``engine = "ASE"`` are rejected with a warning
+because that path is not implemented.
+
+This is the point where ForgeFF follows the potfit-style idea of explicit pair
+channels, but we are still keeping the per-pair form question open for later
+decision. The current TOML layout supports one shared pair form plus explicit
+per-pair parameter blocks.
+
+For EAM alloy, the analytical version looks like this:
+
+.. code-block:: toml
+
+    [potential]
+    family = "eam"
+    form = "alloy"
+
+    [species]
+    order = ["Al", "Cu"]
+
+    [grids]
+    r = [0.1, 0.2, 0.3, 0.4]
+    rho = [0.0, 1.0, 2.0, 3.0]
+
+    [pair.AlAl]
+    initial = [0.20, 1.50, 2.75]
+
+    [pair.AlCu]
+    initial = [0.18, 1.40, 2.85]
+
+    [pair.CuCu]
+    initial = [0.22, 1.60, 2.65]
+
+    [density.Al]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [1.0, 2.0]
+
+    [density.Cu]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [0.9, 1.8]
+
+    [embedding.Al]
+    expression = "F0 * sqrt(rho)"
+    parameter_names = ["F0"]
+    initial = [0.15]
+
+    [embedding.Cu]
+    expression = "F0 * sqrt(rho)"
+    parameter_names = ["F0"]
+    initial = [0.18]
+
+For EAM Finnis-Sinclair, the pair blocks stay the same, but the density table
+becomes fully species-pair dependent:
+
+.. code-block:: toml
+
+    [potential]
+    family = "eam"
+    form = "fs"
+
+    [species]
+    order = ["Al", "Cu"]
+
+    [grids]
+    r = [0.1, 0.2, 0.3, 0.4]
+    rho = [0.0, 1.0, 2.0, 3.0]
+
+    [pair.AlAl]
+    initial = [0.20, 1.50, 2.75]
+
+    [pair.AlCu]
+    initial = [0.18, 1.40, 2.85]
+
+    [pair.CuCu]
+    initial = [0.22, 1.60, 2.65]
+
+    [density.AlAl]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [1.0, 2.0]
+
+    [density.AlCu]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [0.8, 1.7]
+
+    [density.CuAl]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [0.8, 1.7]
+
+    [density.CuCu]
+    expression = "A * exp(-beta * r)"
+    parameter_names = ["A", "beta"]
+    initial = [0.9, 1.8]
+
+    [embedding.Al]
+    expression = "F0 * sqrt(rho)"
+    parameter_names = ["F0"]
+    initial = [0.15]
+
+    [embedding.Cu]
+    expression = "F0 * sqrt(rho)"
+    parameter_names = ["F0"]
+    initial = [0.18]
+
+These analytical EAM layouts follow the same ``[common].engine`` rule as the
+tabulated examples: keep the runtime engine in the matching training setting
+file, not in the potential file.
 
 ADP theory and TOML mapping
 ---------------------------

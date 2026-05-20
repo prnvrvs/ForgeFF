@@ -625,7 +625,7 @@ class LossFunction(LossFunctionBase):
     def __init__(
         self,
         *args: tuple,
-        engine: str = "cext",
+        engine: str = "numpy",
         relax_magmoms: bool | None = None,
         **kwargs: dict,
     ) -> None:
@@ -636,6 +636,7 @@ class LossFunction(LossFunctionBase):
             atoms.calc = make_calculator(
                 self.pot_data,
                 engine=self.engine,
+                form=getattr(self.pot_data, "form", None),
                 mode="train",
                 relax_magmoms=relax_magmoms,
             )

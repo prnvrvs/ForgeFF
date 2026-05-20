@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 
@@ -14,8 +15,15 @@ def _repo_root() -> Path:
 def _run_example(script: str) -> str:
     env = os.environ.copy()
     env["NUMBA_DISABLE_JIT"] = "1"
+    env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONPATH"] = os.pathsep.join(
+        [
+            str(_repo_root()),
+            sysconfig.get_path("purelib") or "",
+        ]
+    )
     result = subprocess.run(
-        [sys.executable, str(_repo_root() / script)],
+        [sys.executable, "-S", str(_repo_root() / script)],
         check=True,
         capture_output=True,
         text=True,
@@ -36,4 +44,3 @@ def test_genetic_algorithm_example_runs() -> None:
     initial = float(re.search(r"initial best fitness: ([0-9.eE+-]+)", stdout).group(1))
     final = float(re.search(r"final best fitness: ([0-9.eE+-]+)", stdout).group(1))
     assert final <= initial
-

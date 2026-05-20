@@ -98,5 +98,4 @@ print(f"testing maximum grade: {max(test_grades)}")
 # ----------
 #
 # - Previous: :doc:`/examples/python/1.evaluate`
-# - Next: :doc:`/examples/python/9.calc`
 pass

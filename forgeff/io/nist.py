@@ -15,9 +15,29 @@ def _sample_grid(n: int, step: float) -> np.ndarray:
     return np.arange(n, dtype=float) * float(step)
 
 
-def read_nist_potential(filename: str | Path) -> EAMData | ADPData:
+def read_nist_potential(filename: str | Path, form: str | None = None) -> EAMData | ADPData:
     """Read a raw NIST EAM/ADP file into ForgeFF tabulated data."""
-    calc = ASEEAM(potential=str(filename))
+    calc = None
+    forms_to_try = [form] if form is not None else []
+    if Path(filename).suffix != ".txt":
+        forms_to_try.extend([None, "adp", "alloy", "eam"])
+    elif form is None:
+        raise ValueError(
+            "Ambiguous NIST .txt potential files require an explicit form="
+            " argument, matching ASE's EAM interface."
+        )
+
+    for current_form in forms_to_try:
+        try:
+            if current_form is None:
+                calc = ASEEAM(potential=str(filename))
+            else:
+                calc = ASEEAM(potential=str(filename), form=current_form)
+            break
+        except Exception:
+            calc = None
+    if calc is None:
+        raise ValueError(f"Unable to read NIST potential file: {filename}")
     r_grid = _sample_grid(calc.nr, calc.dr)
     rho_grid = _sample_grid(calc.nrho, calc.drho)
     species = np.array([int(z) for z in calc.Z], dtype=np.int32)
@@ -40,8 +60,12 @@ def read_nist_potential(filename: str | Path) -> EAMData | ADPData:
             phi[j, i] = values
 
     if calc.form == "adp":
-        dipole = np.asarray(calc.d_data, dtype=float)
-        quadrupole = np.asarray(calc.q_data, dtype=float)
+        dipole = np.zeros((spc, spc, calc.nr), dtype=float)
+        quadrupole = np.zeros((spc, spc, calc.nr), dtype=float)
+        for i in range(spc):
+            for j in range(spc):
+                dipole[i, j] = np.asarray(calc.d[i][j](r_grid), dtype=float)
+                quadrupole[i, j] = np.asarray(calc.q[i][j](r_grid), dtype=float)
         data = ADPData(
             potential_name=Path(filename).name,
             form="alloy",
@@ -56,7 +80,7 @@ def read_nist_potential(filename: str | Path) -> EAMData | ADPData:
     else:
         data = EAMData(
             potential_name=Path(filename).name,
-            form="alloy" if calc.form == "alloy" else "eam",
+            form="fs" if calc.form == "fs" else "alloy",
             r_grid=r_grid,
             rho_grid=rho_grid,
             phi_values=phi,

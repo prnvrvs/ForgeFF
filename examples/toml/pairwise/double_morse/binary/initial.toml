@@ -1,0 +1,19 @@
+[potential]
+family = "analytical"
+form = "double_morse"
+cutoff = 8.0
+
+[species]
+order = ["Al", "Cu"]
+
+[pair.AlAl]
+# Double Morse has two Morse wells plus a constant offset.
+# Parameter order:
+#   E1, a1, r1, E2, a2, r2, delta
+initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
+
+[pair.AlCu]
+initial = [0.025, 4.8, 2.80, 0.015, 2.2, 3.4, 0.0]
+
+[pair.CuCu]
+initial = [0.035, 5.2, 2.95, 0.012, 2.1, 3.6, 0.0]

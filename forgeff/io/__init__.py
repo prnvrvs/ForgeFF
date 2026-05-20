@@ -13,6 +13,7 @@ from forgeff.io.mlip.cfg import read_cfg, write_cfg
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.sw.data import SWData
 
 
 def read(filename: str, species: list[int] | None = None) -> list[Atoms]:
@@ -82,13 +83,19 @@ def write(filename: str, images: list[Atoms], species: list[int] | None = None) 
     return ase.io.write(filename, images)
 
 
-def read_potential(filename: str):
+def read_potential(filename: str, form: str | None = None):
     """Read a potential file into a potential data object."""
     if filename.endswith(".toml"):
         return read_potential_toml(filename)
 
-    if filename.endswith(".eam") or filename.endswith(".eam.alloy") or filename.endswith(".adp") or filename.endswith(".fs"):
-        return read_nist_potential(filename)
+    if (
+        filename.endswith(".eam")
+        or filename.endswith(".eam.alloy")
+        or filename.endswith(".adp")
+        or filename.endswith(".fs")
+        or filename.endswith(".txt")
+    ):
+        return read_nist_potential(filename, form=form)
 
     if filename.endswith(".npy"):
         data = np.load(filename, allow_pickle=True).item()
@@ -104,6 +111,20 @@ def read_potential(filename: str):
             if "engine" not in data and backend is not None:
                 data["engine"] = backend
             return EAMData(**data)
+        if "pair_parameters" in data and "lambda_values" in data:
+            data = dict(data)
+            if "species" in data and data["species"] is not None:
+                data["species"] = list(data["species"])
+            return SWData(**data)
+        if {"epsilon", "sigma", "costheta0", "A", "B", "p", "a", "lambda1", "gamma"} <= data.keys():
+            data = dict(data)
+            backend = data.pop("backend", None)
+            if "species" in data and data["species"] is not None:
+                data["species"] = list(data["species"])
+            if "engine" not in data and backend is not None:
+                data["engine"] = backend
+            data.pop("engine", None)
+            return SWData(**data)
         if {"params", "info", "kwargs"} <= data.keys():
             kwargs = dict(data.get("kwargs", {}))
             engine = kwargs.pop("engine", "numpy")

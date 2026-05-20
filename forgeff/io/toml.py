@@ -8,12 +8,44 @@ from typing import Any
 
 import numpy as np
 import tomllib
-from ase.data import atomic_numbers
+from ase.data import atomic_numbers, chemical_symbols
 
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.ase.forms import evaluate_expression, evaluate_form, get_form_spec
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.sw.data import PAIR_PARAMETER_COUNT, SWData
+
+
+_ASE_ANALYTICAL_CALCULATORS = {
+    "lj": "LennardJones",
+    "morse": "MorsePotential",
+}
+
+_PAIR_SHARED_FORMS = {
+    "lj",
+    "bornmayer",
+    "morse",
+    "doublemorse",
+    "powerdecay",
+    "expdecay",
+    "constant",
+    "coul",
+    "exponential",
+    "hbnd",
+    "buck",
+    "eopp",
+    "csw",
+    "csw2",
+    "ms",
+    "born",
+    "softshell",
+    "expplus",
+    "mexpdecay",
+    "strmm",
+    "poly5",
+    "zero",
+}
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -167,6 +199,64 @@ def _parse_species(data: dict[str, Any], potential: dict[str, Any]) -> list[int]
     return [_species_number(item) for item in species]
 
 
+def _parse_sw_species(data: dict[str, Any], potential: dict[str, Any]) -> list[str]:
+    species_block = data.get("species", {})
+    species = species_block.get("order", potential.get("species", ["Si"]))
+    species = _as_list(species)
+    if not species:
+        species = ["Si"]
+    labels: list[str] = []
+    for item in species:
+        if isinstance(item, (int, np.integer)):
+            labels.append(str(chemical_symbols[int(item)]))
+        else:
+            labels.append(str(item))
+    return labels
+
+
+def _triple_from_key(name: str, labels: list[str]) -> tuple[int, int, int]:
+    normalized = _normalize_label(name)
+    matches: list[tuple[int, int, int]] = []
+    for i, left in enumerate(labels):
+        left_norm = _normalize_label(left)
+        for j, mid in enumerate(labels):
+            mid_norm = _normalize_label(mid)
+            for k, right in enumerate(labels):
+                right_norm = _normalize_label(right)
+                if normalized == left_norm + mid_norm + right_norm:
+                    matches.append((i, j, k))
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(f"Ambiguous triple term name {name!r}; please use explicit 'species' entries.")
+
+    tokens = [token for token in name.replace("-", " ").replace("_", " ").split() if token]
+    if len(tokens) == 3:
+        return (
+            _resolve_index(tokens[0], labels),
+            _resolve_index(tokens[1], labels),
+            _resolve_index(tokens[2], labels),
+        )
+
+    raise ValueError(
+        f"Could not infer triple species from term name {name!r}; "
+        "please add an explicit 'species = [...]' entry."
+    )
+
+
+def _sw_pair_coverage(species_count: int) -> list[tuple[int, int]]:
+    return [(i, j) for i in range(species_count) for j in range(i, species_count)]
+
+
+def _sw_lambda_coverage(species_count: int) -> list[tuple[int, int, int]]:
+    return [
+        (i, j, k)
+        for i in range(species_count)
+        for j in range(species_count)
+        for k in range(j, species_count)
+    ]
+
+
 def _grid_from(data: dict[str, Any], potential: dict[str, Any], name: str) -> np.ndarray:
     grids = data.get("grids", {})
     value = grids.get(name, potential.get(f"{name}_grid", potential.get(name)))
@@ -196,13 +286,16 @@ def _check_coverage(
 
 
 def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEData:
+    if "pair" in data and data["pair"]:
+        return _read_multispecies_pair_toml(data, potential)
+
     engine = str(potential.get("engine", "numpy"))
     engine_alias = engine.lower()
     calculator_kwargs = {}
     if "expression" in potential:
-        if engine_alias == "numba":
+        if engine_alias in {"numba", "ase"}:
             warnings.warn(
-                "Custom analytical expressions do not support engine='numba'; falling back to engine='numpy'.",
+                "Custom analytical expressions do not support engine='numba' or engine='ASE'; falling back to engine='numpy'.",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -216,8 +309,23 @@ def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEDat
         if engine_alias == "numpy":
             calculator_kwargs["expression"] = spec["formula"]
             calculator_kwargs.setdefault("variable", spec.get("variable", "r"))
+        elif engine_alias == "ase":
+            form_key = str(potential["form"]).lower()
+            if form_key not in _ASE_ANALYTICAL_CALCULATORS:
+                warnings.warn(
+                    f"ASE does not support analytical form {potential['form']!r}; "
+                    "falling back to engine='numpy'.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                engine = "numpy"
+                engine_alias = "numpy"
+                calculator_kwargs["expression"] = spec["formula"]
+                calculator_kwargs.setdefault("variable", spec.get("variable", "r"))
+            else:
+                calculator_kwargs["calculator"] = _ASE_ANALYTICAL_CALCULATORS[form_key]
         elif engine_alias != "numba":
-            raise ValueError(f"Unknown analytical engine {engine!r}. Use 'numpy' or 'numba'.")
+            raise ValueError(f"Unknown analytical engine {engine!r}. Use 'ASE', 'numpy', or 'numba'.")
     for key in ("parameter_names", "variable", "cutoff", "rc"):
         if key in potential:
             calculator_kwargs[key] = potential[key]
@@ -241,6 +349,178 @@ def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEDat
     for idx, name in enumerate(parameter_names):
         value = initial[idx] if idx < len(initial) else None
         ase_data.add_parameter(name, (), value)
+    return ase_data
+
+
+def _read_sw_toml(data: dict[str, Any], potential: dict[str, Any]) -> SWData:
+    species = _parse_sw_species(data, potential)
+    labels = species
+    pair_terms = data.get("pair", {})
+    lambda_terms = data.get("lambda", {})
+
+    if pair_terms or lambda_terms:
+        if not pair_terms or not lambda_terms:
+            raise ValueError("Multispecies Stillinger-Weber requires both [pair.*] and [lambda.*] blocks.")
+
+        spc = len(species)
+        pair_parameters = np.zeros((spc, spc, PAIR_PARAMETER_COUNT), dtype=float)
+        lambda_values = np.zeros((spc, spc, spc), dtype=float)
+        seen_pairs: set[tuple[int, int]] = set()
+        seen_lambdas: set[tuple[int, int, int]] = set()
+
+        for name, term in pair_terms.items():
+            term = dict(term)
+            if "species" in term:
+                pair = _as_list(term["species"])
+                if len(pair) != 2:
+                    raise ValueError(f"SW pair term {name!r} must define exactly two species.")
+                i, j = (_resolve_index(s, labels) for s in pair)
+            else:
+                i, j = _pair_from_key(name, labels)
+            values = _term_array(term, PAIR_PARAMETER_COUNT)
+            pair_parameters[i, j] = values
+            pair_parameters[j, i] = values
+            seen_pairs.add((i, j))
+            seen_pairs.add((j, i))
+
+        for name, term in lambda_terms.items():
+            term = dict(term)
+            if "species" in term:
+                triple = _as_list(term["species"])
+                if len(triple) != 3:
+                    raise ValueError(f"SW lambda term {name!r} must define exactly three species.")
+                i, j, k = (_resolve_index(s, labels) for s in triple)
+            else:
+                i, j, k = _triple_from_key(name, labels)
+            value = _term_array(term, 1)[0]
+            j, k = sorted((j, k))
+            lambda_values[i, j, k] = value
+            lambda_values[i, k, j] = value
+            seen_lambdas.add((i, j, k))
+            seen_lambdas.add((i, k, j))
+
+        missing_pairs = [pair for pair in _sw_pair_coverage(spc) if pair not in seen_pairs]
+        if missing_pairs:
+            raise ValueError(f"SW TOML is missing pair terms for species pairs: {missing_pairs}")
+        missing_lambdas = [triplet for triplet in _sw_lambda_coverage(spc) if triplet not in seen_lambdas]
+        if missing_lambdas:
+            raise ValueError(f"SW TOML is missing lambda terms for species triples: {missing_lambdas}")
+
+        return SWData(
+            species=species,
+            pair_parameters=pair_parameters,
+            lambda_values=lambda_values,
+            costheta0=float(potential.get("costheta0", 1.0 / 3.0)),
+        )
+
+    sw_kwargs: dict[str, Any] = {"species": species}
+    for key in ("epsilon", "sigma", "costheta0", "A", "B", "p", "a", "lambda1", "gamma", "optimized"):
+        if key in potential:
+            sw_kwargs[key] = potential[key]
+    return SWData(**sw_kwargs)
+
+
+def _read_multispecies_pair_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEData:
+    species = _parse_species(data, potential)
+    labels = _species_labels(species)
+    engine = str(potential.get("engine", "numpy"))
+    engine_alias = engine.lower()
+    if engine_alias == "ase":
+        warnings.warn(
+            "ASE does not support multispecies analytical pair fitting; stopping.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        raise ValueError("engine='ASE' is not supported for multispecies analytical pair fitting.")
+
+    pair_terms = data.get("pair", {})
+    if not pair_terms:
+        raise ValueError("Multispecies analytical pair TOML requires at least one [pair.*] block.")
+
+    shared_form = potential.get("form")
+    shared_expression = potential.get("expression")
+    if shared_form is None and shared_expression is None:
+        raise ValueError("Multispecies analytical pair TOML requires a top-level [potential].form or .expression.")
+
+    if shared_form is not None:
+        shared_form = str(shared_form)
+        if _normalize_label(shared_form) not in _PAIR_SHARED_FORMS:
+            raise ValueError(f"Unsupported analytical pair form for multispecies fitting: {shared_form!r}")
+
+    shared_parameter_names = _as_list(potential.get("parameter_names", []))
+    if shared_expression is not None and not shared_parameter_names:
+        raise ValueError("Multispecies analytical expressions require [potential].parameter_names.")
+
+    calculator_kwargs: dict[str, Any] = {
+        "species": species,
+        "pair_terms": [],
+    }
+    if shared_form is not None:
+        calculator_kwargs["form"] = shared_form
+    if shared_expression is not None:
+        calculator_kwargs["expression"] = str(shared_expression)
+        calculator_kwargs["parameter_names"] = shared_parameter_names
+    for key in ("cutoff", "rc"):
+        if key in potential:
+            calculator_kwargs[key] = potential[key]
+
+    ase_data = ASEData(engine=str(engine), calculator_kwargs=calculator_kwargs)
+
+    seen_pairs: set[tuple[int, int]] = set()
+    for name, term in pair_terms.items():
+        term = dict(term)
+        if "species" in term:
+            pair = _as_list(term["species"])
+            if len(pair) != 2:
+                raise ValueError(f"Pair term {name!r} must define exactly two species.")
+            i, j = (_resolve_index(s, labels) for s in pair)
+        else:
+            i, j = _pair_from_key(name, labels)
+
+        term_form = term.get("form", shared_form)
+        term_expression = term.get("expression", shared_expression)
+        if term_form is None and term_expression is None:
+            raise ValueError(f"Pair term {name!r} must define a form or expression.")
+        if shared_form is not None and term_form is not None and str(term_form) != str(shared_form):
+            raise ValueError(f"Pair term {name!r} must use the shared analytical form {shared_form!r}.")
+        if shared_expression is not None and term_expression is not None and str(term_expression) != str(shared_expression):
+            raise ValueError(f"Pair term {name!r} must use the shared analytical expression.")
+
+        if term_expression is not None:
+            parameter_names = _as_list(term.get("parameter_names", shared_parameter_names))
+            if not parameter_names:
+                raise ValueError(f"Multispecies pair term {name!r} requires 'parameter_names'.")
+        else:
+            spec = get_form_spec(str(shared_form))
+            parameter_names = _as_list(term.get("parameter_names", spec["params"]))
+        values = term.get("initial", term.get("values"))
+        if values is None:
+            values = [0.0] * len(parameter_names)
+        values = _as_list(values)
+        if len(values) != len(parameter_names):
+            raise ValueError(
+                f"Length of multispecies pair term {name!r} initial values must match parameter names."
+            )
+
+        prefix = f"{labels[i]}{labels[j]}"
+        pair_entry = {
+            "name": name,
+            "species": [int(species[i]), int(species[j])],
+            "prefix": prefix,
+            "parameter_names": list(parameter_names),
+            "form": str(term_form) if term_form is not None else None,
+            "expression": str(term_expression) if term_expression is not None else None,
+            "variable": str(term.get("variable", potential.get("variable", "r"))),
+            "cutoff": term.get("cutoff", potential.get("cutoff")),
+            "rc": term.get("rc", potential.get("rc")),
+        }
+        calculator_kwargs["pair_terms"].append(pair_entry)
+        for idx, param_name in enumerate(parameter_names):
+            ase_data.add_parameter(f"{prefix}_{param_name}", (), values[idx])
+        seen_pairs.add((i, j))
+        seen_pairs.add((j, i))
+
+    _check_coverage(seen_pairs, _term_key_pairs(len(species), str(shared_form or "alloy")), label="pair")
     return ase_data
 
 
@@ -405,12 +685,14 @@ def read_potential_toml(filename: str | Path):
     engine = str(potential.get("engine", default_engine))
     engine_alias = engine.lower()
 
+    if family == "sw":
+        return _read_sw_toml(data, potential)
     if family in {"eam", "adp"}:
         result = _populate_eam_arrays(data, potential, family=family)
         result.engine = engine
         return result
 
-    if family == "analytical" or engine_alias in {"numpy", "numba"}:
+    if family == "analytical" or engine_alias in {"ase", "numpy", "numba"}:
         return _read_custom_toml(data, potential)
 
     # Infer family from the presence of ADP-only tables or EAM tables.

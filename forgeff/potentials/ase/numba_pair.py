@@ -7,6 +7,7 @@ from typing import Any
 import numba
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
+from ase.data import atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.stress import full_3x3_to_voigt_6_stress
 
@@ -307,6 +308,53 @@ def _calculate_pair(form_id, params, i_list, j_list, dist, rvec, natoms):
     return energy, local, forces, virial
 
 
+@numba.njit(cache=True)
+def _calculate_pair_multispecies(form_id, pair_index_map, pair_params, types, i_list, j_list, dist, rvec, natoms):
+    energy = 0.0
+    local = np.zeros(natoms)
+    forces = np.zeros((natoms, 3))
+    virial = np.zeros((3, 3))
+
+    for k in range(dist.shape[0]):
+        r = dist[k]
+        if r <= 0.0:
+            continue
+        i = i_list[k]
+        j = j_list[k]
+        pair_idx = pair_index_map[types[i], types[j]]
+        if pair_idx < 0:
+            continue
+        pair_energy, ddr = _pair_eval(form_id, r, pair_params[pair_idx])
+        rx = rvec[k, 0]
+        ry = rvec[k, 1]
+        rz = rvec[k, 2]
+        inv_r = 1.0 / r
+        fx = -ddr * rx * inv_r
+        fy = -ddr * ry * inv_r
+        fz = -ddr * rz * inv_r
+
+        energy += pair_energy
+        local[i] += 0.5 * pair_energy
+        local[j] += 0.5 * pair_energy
+        forces[i, 0] += fx
+        forces[i, 1] += fy
+        forces[i, 2] += fz
+        forces[j, 0] -= fx
+        forces[j, 1] -= fy
+        forces[j, 2] -= fz
+        virial[0, 0] += rx * fx
+        virial[0, 1] += rx * fy
+        virial[0, 2] += rx * fz
+        virial[1, 0] += ry * fx
+        virial[1, 1] += ry * fy
+        virial[1, 2] += ry * fz
+        virial[2, 0] += rz * fx
+        virial[2, 1] += rz * fy
+        virial[2, 2] += rz * fz
+
+    return energy, local, forces, virial
+
+
 class NumbaPairPotential(Calculator):
     """JIT-accelerated built-in analytical pair potential."""
 
@@ -325,6 +373,8 @@ class NumbaPairPotential(Calculator):
         cutoff: float | None = None,
         rc: float | None = None,
         parameter_names: list[str] | tuple[str, ...] | None = None,
+        pair_terms: list[dict[str, Any]] | None = None,
+        species: list[int] | list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(form=form, cutoff=cutoff, rc=rc, parameter_names=parameter_names, **kwargs)
@@ -342,6 +392,28 @@ class NumbaPairPotential(Calculator):
             parameter_names = spec["params"]
         self.parameter_names = list(parameter_names)
         self._parameter_index = {name: idx for idx, name in enumerate(self.parameter_names)}
+
+        self.multispecies = bool(pair_terms)
+        if self.multispecies:
+            if any(term.get("expression") is not None for term in pair_terms or []):
+                raise ValueError("Multispecies Numba pair potentials currently support built-in forms only.")
+            if species is None:
+                raise ValueError("Multispecies pair potential requires an explicit species order.")
+            self.species_numbers = np.array(
+                [atomic_numbers.get(str(item), int(item)) if not isinstance(item, int) else int(item) for item in species],
+                dtype=np.int32,
+            )
+            self._pair_index_map = np.full((119, 119), -1, dtype=np.int32)
+            self._pair_params = np.zeros((len(pair_terms), len(self.parameter_names)), dtype=np.float64)
+            for idx, term in enumerate(pair_terms):
+                pair_species = term["species"]
+                i, j = int(pair_species[0]), int(pair_species[1])
+                self._pair_index_map[i, j] = idx
+                self._pair_index_map[j, i] = idx
+                prefix = term["prefix"]
+                for pidx, name in enumerate(self.parameter_names):
+                    self._pair_params[idx, pidx] = float(kwargs[f"{prefix}_{name}"])
+            return
 
         missing = [name for name in self.parameter_names if name not in kwargs]
         if missing:
@@ -362,15 +434,29 @@ class NumbaPairPotential(Calculator):
         i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
         if len(i_list):
             rvec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
-            energy, local, forces, virial = _calculate_pair(
-                self.form_id,
-                np.asarray(self._parameter_values, dtype=np.float64),
-                i_list.astype(np.int64),
-                j_list.astype(np.int64),
-                np.asarray(dist, dtype=np.float64),
-                np.asarray(rvec, dtype=np.float64),
-                natoms,
-            )
+            if self.multispecies:
+                types = self.atoms.get_atomic_numbers().astype(np.int64)
+                energy, local, forces, virial = _calculate_pair_multispecies(
+                    self.form_id,
+                    self._pair_index_map,
+                    np.asarray(self._pair_params, dtype=np.float64),
+                    types,
+                    i_list.astype(np.int64),
+                    j_list.astype(np.int64),
+                    np.asarray(dist, dtype=np.float64),
+                    np.asarray(rvec, dtype=np.float64),
+                    natoms,
+                )
+            else:
+                energy, local, forces, virial = _calculate_pair(
+                    self.form_id,
+                    np.asarray(self._parameter_values, dtype=np.float64),
+                    i_list.astype(np.int64),
+                    j_list.astype(np.int64),
+                    np.asarray(dist, dtype=np.float64),
+                    np.asarray(rvec, dtype=np.float64),
+                    natoms,
+                )
         else:
             energy = 0.0
             local = np.zeros(natoms, dtype=float)
