@@ -5,6 +5,9 @@ import subprocess
 import sys
 import sysconfig
 from pathlib import Path
+from types import SimpleNamespace
+
+import forgeff.train.cli as train_cli
 
 
 def _repo_root() -> Path:
@@ -45,3 +48,20 @@ def test_train_cli_prints_error_statistics() -> None:
     assert "Error statistics:" in output, output
     assert "| Metric" in output, output
     assert "Training complete." in output, output
+
+
+def test_train_cli_prints_only_on_master(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(train_cli, "load_setting_train", lambda _: SimpleNamespace(
+        potentials=SimpleNamespace(final="final.npy"),
+        configurations=SimpleNamespace(training=[]),
+        common=SimpleNamespace(species=[], engine="numpy"),
+    ))
+    monkeypatch.setattr(train_cli, "train_from_setting", lambda *args, **kwargs: None)
+    monkeypatch.setattr(train_cli, "analyze_error_statistics", lambda *args, **kwargs: {})
+    called = []
+    monkeypatch.setattr(train_cli, "print_error_statistics", lambda errors: called.append(errors))
+    monkeypatch.setattr(train_cli, "world", SimpleNamespace(rank=1, size=2))
+
+    train_cli.run(SimpleNamespace(setting="dummy.toml"))
+
+    assert called == []

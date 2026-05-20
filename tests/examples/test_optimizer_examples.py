@@ -44,3 +44,19 @@ def test_genetic_algorithm_example_runs() -> None:
     initial = float(re.search(r"initial best fitness: ([0-9.eE+-]+)", stdout).group(1))
     final = float(re.search(r"final best fitness: ([0-9.eE+-]+)", stdout).group(1))
     assert final <= initial
+
+
+def test_training_examples_run() -> None:
+    stdout = _run_example("examples/python/0.train.py")
+    initial = float(re.search(r"initial loss: ([0-9.eE+-]+)", stdout).group(1))
+    final = float(re.search(r"final loss: ([0-9.eE+-]+)", stdout).group(1))
+    assert final <= initial
+    assert "training indices:" in stdout
+
+    stdout = _run_example("examples/python/1.evaluate.py")
+    assert "Training set error statistics:" in stdout
+    assert "Testing set error statistics:" in stdout
+
+    stdout = _run_example("examples/python/2.grade.py")
+    assert "graded training set:" in stdout
+    assert "graded testing set:" in stdout

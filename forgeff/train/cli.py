@@ -4,7 +4,7 @@ import argparse
 
 from forgeff.error.cli import analyze_error_statistics, print_error_statistics
 from forgeff.train.setting import load_setting_train
-from forgeff.parallel import world
+from forgeff.parallel import is_master, world
 from forgeff.utils import measure_time
 
 from .trainer import train_from_setting
@@ -27,8 +27,9 @@ def run(args: argparse.Namespace) -> None:
         engine=getattr(setting.common, "engine", None) or "numpy",
         comm=world,
     )
-    print_error_statistics(errors)
-    print("Training complete.")
+    if is_master(world):
+        print_error_statistics(errors)
+        print("Training complete.")
 
 
 def main() -> None:

@@ -37,6 +37,10 @@ Supported combinations
 - Tersoff:
   - ``numba``
 
+If you need a LAMMPS output file, see :doc:`cli/export` for tabulated EAM
+and ADP potentials. Analytical pair potentials, Stillinger-Weber, and
+Tersoff are runtime engines only.
+
 Usage examples
 --------------
 

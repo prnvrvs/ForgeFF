@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from textwrap import dedent
 
+import numpy as np
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -119,3 +121,28 @@ print(int(np.any(np.any(population[0] != population[1:], axis=-1))))
 """
     )
     assert stdout.strip().endswith("1")
+
+
+def test_ga_crossover_uses_elementwise_uniform(monkeypatch) -> None:
+    from forgeff.optimizers.ga import GeneticAlgorithm
+
+    monkeypatch.setattr("forgeff.optimizers.ga.random.random", lambda: 0.0)
+    np.random.seed(0)
+
+    ga = GeneticAlgorithm(
+        lambda x: float(np.sum(np.square(x))),
+        np.array([0.0, 0.0]),
+        lower_bound=np.array([0.0, 0.0]),
+        upper_bound=np.array([10.0, 10.0]),
+        crossover_probability=1.0,
+    )
+
+    child1, child2 = ga.crossover(np.array([0.0, 1.0]), np.array([2.0, 5.0]))
+    lower = np.array([0.0, 1.0])
+    upper = np.array([2.0, 5.0])
+    ratio1 = (np.asarray(child1) - lower) / (upper - lower)
+    ratio2 = (np.asarray(child2) - lower) / (upper - lower)
+    assert not np.allclose(np.asarray(child1), lower)
+    assert not np.allclose(np.asarray(child2), lower)
+    assert not np.allclose(ratio1[0], ratio1[1])
+    assert not np.allclose(ratio2[0], ratio2[1])

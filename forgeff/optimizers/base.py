@@ -154,7 +154,11 @@ class ParallelOptimizerBase(OptimizerBase):
         resulting parameters are broadcast to all ranks.
         """
         if self.loss.comm.rank == 0:
-            result_x = self._optimize(**kwargs)
+            try:
+                result_x = self._optimize(**kwargs)
+            except Exception:
+                self.loss.comm.bcast(self._OP_STOP, root=0)
+                raise
             self.loss.comm.bcast(self._OP_STOP, root=0)
         else:
             self._worker_loop()

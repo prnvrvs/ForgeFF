@@ -9,7 +9,7 @@ from forgeff.evaluate.evaluator import Evaluator
 from forgeff.io import read_potential
 from forgeff.io.utils import get_dummy_species, read_images
 from forgeff.loss import ErrorPrinter, format_error_statistics
-from forgeff.parallel import world
+from forgeff.parallel import is_master, world
 
 
 def analyze_error_statistics(
@@ -69,7 +69,8 @@ def run(args: argparse.Namespace) -> None:
         engine=args.engine,
         comm=world,
     )
-    print_error_statistics(errors)
+    if is_master(world):
+        print_error_statistics(errors)
 
 
 def main() -> None:

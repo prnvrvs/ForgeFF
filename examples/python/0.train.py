@@ -27,7 +27,7 @@ for noisy_logger in (
 # Load the shared unary Al dataset from the TOML example folder.
 root = Path(__file__).resolve().parents[2]
 dataset_path = root / "examples/toml/data/unary/training.cfg"
-images_all = read(str(dataset_path))
+images_all = read(str(dataset_path), species=[13])
 
 # Use the first half for training and keep the second half for testing.
 train_indices = np.arange(5, dtype=int)

@@ -130,9 +130,9 @@ class GeneticAlgorithm:
             alpha = 0.5
             lower = np.minimum(parent1, parent2) - alpha * d
             upper = np.maximum(parent1, parent2) + alpha * d
-            child1 = random.uniform(lower, upper)
-            child2 = random.uniform(lower, upper)
-            return list(child1), list(child2)
+            child1 = np.random.uniform(lower, upper)
+            child2 = np.random.uniform(lower, upper)
+            return child1, child2
         return parent1, parent2
 
     def mutate(self, parameter: np.ndarray) -> np.ndarray:

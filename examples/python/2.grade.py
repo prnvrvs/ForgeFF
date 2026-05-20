@@ -26,11 +26,11 @@ for noisy_logger in (
 # Load the shared unary Al dataset from the TOML example folder.
 root = Path(__file__).resolve().parents[2]
 dataset_path = root / "examples/toml/data/unary/training.cfg"
-images_all = read(str(dataset_path))
+images_all = read(str(dataset_path), species=[13])
 
-# Use the first half for training and keep the second half for testing.
-train_indices = np.arange(5, dtype=int)
-test_indices = np.arange(5, 10, dtype=int)
+# Use most images for training so the maxvol grading step has enough rows.
+train_indices = np.arange(7, dtype=int)
+test_indices = np.arange(7, 10, dtype=int)
 images_training = [images_all[i] for i in train_indices]
 images_test = [images_all[i] for i in test_indices]
 
@@ -39,12 +39,12 @@ images_test = [images_all[i] for i in test_indices]
 # Start from a very small coarse tabulated EAM guess.
 potential_file = root / "tests/data_path/nist/Al99.eam.alloy"
 source_potential: EAMData = read_potential(str(potential_file))
-r_grid = np.linspace(source_potential.r_grid[0], source_potential.r_grid[-1], 3)
-rho_grid = np.linspace(source_potential.rho_grid[0], source_potential.rho_grid[-1], 3)
+r_grid = np.linspace(source_potential.r_grid[0], source_potential.r_grid[-1], 2)
+rho_grid = np.linspace(source_potential.rho_grid[0], source_potential.rho_grid[-1], 2)
 spc = source_potential.species_count
-phi_values = np.empty((spc, spc, 3), dtype=float)
-rho_values = np.empty((spc, spc, 3), dtype=float)
-emb_values = np.empty((spc, 3), dtype=float)
+phi_values = np.empty((spc, spc, len(r_grid)), dtype=float)
+rho_values = np.empty((spc, spc, len(r_grid)), dtype=float)
+emb_values = np.empty((spc, len(rho_grid)), dtype=float)
 for i in range(spc):
     emb_values[i] = np.interp(rho_grid, source_potential.rho_grid, source_potential.emb_values[i])
     for j in range(spc):

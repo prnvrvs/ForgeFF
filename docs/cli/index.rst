@@ -8,4 +8,5 @@ Command line interface (CLI)
     evaluate
     grade
     error
+    export
     template

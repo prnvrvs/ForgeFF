@@ -42,6 +42,10 @@ The generated file is only the potential definition. The matching
 ``forgeff.train.toml`` still carries ``[common].engine`` and the rest of the
 runtime settings.
 
+If you need a LAMMPS-compatible output file for EAM or ADP, see
+:doc:`cli/export`. That page covers the supported formats and command-line
+usage.
+
 The example set includes unary and binary layouts for the supported families:
 
 - pairwise: unary and binary

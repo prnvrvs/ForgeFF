@@ -72,8 +72,7 @@ class ASEData:
 
     def get_bounds(self) -> list[tuple[float, float]] | None:
         """Get bounds for the parameters. Returns None if no bounds are set."""
-        # For now, return None as standard ASE calculators might not have predefined bounds
-        return None
+        return [(-10.0, 10.0)] * self.number_of_parameters_optimized
 
     def initialize(self, rng: np.random.Generator) -> None:
         """Initialize with random values if they are all zero."""

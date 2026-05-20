@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+import forgeff.error.cli as error_cli
 from forgeff.error.cli import analyze_error_statistics
 
 
@@ -31,3 +33,14 @@ def test_error_cli_runs_on_example_dataset(potential: str, dataset: str, engine:
     assert np.isfinite(errors["energy"]["RMS"])
     assert np.isfinite(errors["forces"]["RMS"])
     assert errors["stress"]["RMS"] >= 0.0
+
+
+def test_error_cli_prints_only_on_master(monkeypatch) -> None:
+    called = []
+    monkeypatch.setattr(error_cli, "analyze_error_statistics", lambda *args, **kwargs: {})
+    monkeypatch.setattr(error_cli, "print_error_statistics", lambda errors: called.append(errors))
+    monkeypatch.setattr(error_cli, "world", SimpleNamespace(rank=1, size=2))
+
+    error_cli.run(SimpleNamespace(potential="p", dataset=["d"], engine="numpy", species=None))
+
+    assert called == []

@@ -4,6 +4,7 @@ import argparse
 import logging
 
 import forgeff.error.cli
+import forgeff.export.cli
 import forgeff.evaluate.cli
 import forgeff.grade.cli
 import forgeff.template.cli
@@ -25,6 +26,7 @@ def main() -> None:
 
     commands = {
         "error": forgeff.error.cli,
+        "export": forgeff.export.cli,
         "train": forgeff.train.cli,
         "evaluate": forgeff.evaluate.cli,
         "grade": forgeff.grade.cli,

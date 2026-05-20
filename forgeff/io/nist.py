@@ -72,6 +72,7 @@ def read_nist_potential(filename: str | Path, form: str | None = None) -> EAMDat
             r_grid=r_grid,
             rho_grid=rho_grid,
             phi_values=phi,
+            rphi_values=np.asarray(calc.rphi_data, dtype=float),
             rho_values=rho,
             emb_values=emb,
             dipole_values=dipole,
@@ -84,6 +85,7 @@ def read_nist_potential(filename: str | Path, form: str | None = None) -> EAMDat
             r_grid=r_grid,
             rho_grid=rho_grid,
             phi_values=phi,
+            rphi_values=np.asarray(calc.rphi_data, dtype=float),
             rho_values=rho,
             emb_values=emb,
         )

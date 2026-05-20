@@ -32,9 +32,11 @@ class EAMData:
     
     # Values of the functions at grid points (the parameters to be optimized)
     # phi_values: (species, species, r_grid_size)
+    # rphi_values: raw pair table as stored in LAMMPS/ASE export files
     # rho_values: (species, species, r_grid_size)
     # emb_values: (species, rho_grid_size)
     phi_values: npt.NDArray[np.float64] | None = None
+    rphi_values: npt.NDArray[np.float64] | None = None
     rho_values: npt.NDArray[np.float64] | None = None
     emb_values: npt.NDArray[np.float64] | None = None
     
@@ -114,7 +116,7 @@ class EAMData:
 
     def get_bounds(self) -> list[tuple[float, float]] | None:
         """Get bounds for EAM parameters."""
-        return None
+        return [(-10.0, 10.0)] * self.number_of_parameters_optimized
 
     def initialize(self, rng: np.random.Generator) -> None:
         """Random initialization of potential values."""

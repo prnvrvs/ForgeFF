@@ -8,6 +8,7 @@ from ase import Atoms
 from ase.io.formats import parse_filename
 
 from forgeff.io.toml import read_potential_toml
+from forgeff.io.lammps import write_lammps_potential
 from forgeff.io.nist import read_nist_potential
 from forgeff.io.mlip.cfg import read_cfg, write_cfg
 from forgeff.potentials.ase.data import ASEData
