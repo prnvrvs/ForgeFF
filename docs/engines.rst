@@ -38,8 +38,9 @@ Supported combinations
   - ``numba``
 
 If you need a LAMMPS output file, see :doc:`cli/export` for tabulated EAM
-and ADP potentials. Analytical pair potentials, Stillinger-Weber, and
-Tersoff are runtime engines only.
+and ADP potentials. Analytical pair potentials and Stillinger-Weber are
+runtime engines only. Tersoff can be loaded from TOML or the Python API and
+still executes through the Numba engine.
 
 Usage examples
 --------------

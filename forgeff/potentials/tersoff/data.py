@@ -75,13 +75,17 @@ class TersoffData:
         cls,
         parameters: dict[tuple[str, str, str], TersoffParameters | list[float] | tuple[float, ...]],
         *,
+        species: list[str] | None = None,
         cutoff_skin: float = 0.3,
     ) -> "TersoffData":
-        species: list[str] = []
-        for key in parameters:
-            for symbol in key:
-                if symbol not in species:
-                    species.append(symbol)
+        if species is None:
+            species = []
+            for key in parameters:
+                for symbol in key:
+                    if symbol not in species:
+                        species.append(symbol)
+        else:
+            species = [str(symbol) for symbol in species]
 
         if not species:
             raise ValueError("Tersoff parameter dictionary must not be empty.")

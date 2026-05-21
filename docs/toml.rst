@@ -51,6 +51,7 @@ The example set includes unary and binary layouts for the supported families:
 - pairwise: unary and binary
 - EAM: unary alloy, binary alloy, unary FS, and binary FS
 - ADP: unary and binary
+- Tersoff: explicit species-triple tables
 
 Overview
 --------
@@ -65,11 +66,13 @@ The TOML schema supports three potential families:
 - tabulated EAM potentials
 - tabulated ADP potentials
 - Stillinger-Weber potentials
+- Tersoff potentials
 
 The general structure is:
 
 - ``[potential]``: selects the family and calculation mode
 - ``[species]``: fixes the canonical species order for EAM/ADP
+- ``[triplet.*]``: stores Tersoff species-triple tables
 - ``[grids]``: defines uniform radial and density grids for tabulated models
 - term blocks such as ``[pair.*]``, ``[density.*]``, ``[embedding.*]``,
   ``[dipole.*]``, and ``[quadrupole.*]``
@@ -84,7 +87,8 @@ Here is the short version of what each part means:
   - ``analytical``: one formula per term
   - ``eam``: tabulated embedded-atom model
   - ``adp``: tabulated EAM plus angular corrections
-  - ``sw``: Stillinger-Weber potential
+- ``sw``: Stillinger-Weber potential
+  - ``tersoff``: Tersoff potential
 - ``form`` says which flavor inside the family you want.
   - for analytical pair potentials, this is the equation name
   - for EAM, this is usually ``alloy`` or ``fs``
@@ -161,6 +165,28 @@ The matching ``forgeff.train.toml`` then sets ``[common].engine`` to either
 ``numpy`` or ``numba``. The public rule is the same as the other native
 families: ``numpy`` for the reference implementation and ``numba`` for the
 accelerated path.
+
+Tersoff
+-------
+
+ForgeFF also supports a native Tersoff family with a species-order table and
+explicit triple blocks. Each block stores the 14 parameters for one
+``(i, j, k)`` species combination:
+
+.. code-block:: toml
+
+    [potential]
+    family = "tersoff"
+    cutoff_skin = 0.3
+
+    [species]
+    order = ["Si"]
+
+    [triplet.SiSiSi]
+    initial = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+
+The runtime engine still lives in the training setting file and uses
+``engine = "numba"`` for now.
 
 Path handling
 -------------

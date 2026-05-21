@@ -14,6 +14,7 @@ from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.ase.forms import evaluate_expression, evaluate_form, get_form_spec
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
 from forgeff.potentials.sw.data import PAIR_PARAMETER_COUNT, SWData
 
 
@@ -242,6 +243,25 @@ def _triple_from_key(name: str, labels: list[str]) -> tuple[int, int, int]:
         f"Could not infer triple species from term name {name!r}; "
         "please add an explicit 'species = [...]' entry."
     )
+
+
+def _parse_tersoff_species(data: dict[str, Any], potential: dict[str, Any]) -> list[str]:
+    species_block = data.get("species", {})
+    species = species_block.get("order", potential.get("species", []))
+    species = _as_list(species)
+    if not species:
+        raise ValueError("Tersoff TOML potential requires a non-empty [species].order list.")
+    labels: list[str] = []
+    for item in species:
+        if isinstance(item, (int, np.integer)):
+            labels.append(str(chemical_symbols[int(item)]))
+        else:
+            labels.append(str(item))
+    return labels
+
+
+def _tersoff_triplet_coverage(species_count: int) -> list[tuple[int, int, int]]:
+    return [(i, j, k) for i in range(species_count) for j in range(species_count) for k in range(species_count)]
 
 
 def _sw_pair_coverage(species_count: int) -> list[tuple[int, int]]:
@@ -673,6 +693,41 @@ def _populate_eam_arrays(
     return pot
 
 
+def _read_tersoff_toml(data: dict[str, Any], potential: dict[str, Any]) -> TersoffData:
+    species = _parse_tersoff_species(data, potential)
+    labels = species
+    triplet_terms = data.get("triplet", {})
+    if not triplet_terms:
+        raise ValueError("Tersoff TOML potential requires at least one [triplet.*] block.")
+
+    parameters: dict[tuple[str, str, str], TersoffParameters] = {}
+    seen_triplets: set[tuple[int, int, int]] = set()
+    for name, term in triplet_terms.items():
+        term = dict(term)
+        if "species" in term:
+            triple = _as_list(term["species"])
+            if len(triple) != 3:
+                raise ValueError(f"Tersoff triplet term {name!r} must define exactly three species.")
+            key = tuple(str(s) for s in triple)
+            i, j, k = (_resolve_index(s, labels) for s in triple)
+        else:
+            i, j, k = _triple_from_key(name, labels)
+            key = (labels[i], labels[j], labels[k])
+        values = _term_array(term, 14)
+        parameters[key] = TersoffParameters.from_list(values)
+        seen_triplets.add((i, j, k))
+
+    missing_triplets = [triplet for triplet in _tersoff_triplet_coverage(len(species)) if triplet not in seen_triplets]
+    if missing_triplets:
+        raise ValueError(f"Tersoff TOML is missing triplet terms for species triples: {missing_triplets}")
+
+    return TersoffData.from_parameter_dict(
+        parameters,
+        species=species,
+        cutoff_skin=float(potential.get("cutoff_skin", potential.get("skin", 0.3))),
+    )
+
+
 def read_potential_toml(filename: str | Path):
     """Read a TOML-defined potential."""
     with Path(filename).open("rb") as handle:
@@ -685,6 +740,8 @@ def read_potential_toml(filename: str | Path):
     engine = str(potential.get("engine", default_engine))
     engine_alias = engine.lower()
 
+    if family == "tersoff":
+        return _read_tersoff_toml(data, potential)
     if family == "sw":
         return _read_sw_toml(data, potential)
     if family in {"eam", "adp"}:

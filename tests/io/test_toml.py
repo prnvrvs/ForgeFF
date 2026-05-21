@@ -11,6 +11,7 @@ from forgeff.io import read_potential
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.tersoff.data import TersoffData
 from forgeff.potentials.sw.data import SWData
 
 
@@ -194,6 +195,68 @@ initial = [0.25, 2.70]
     with pytest.warns(RuntimeWarning, match="multispecies analytical pair fitting"):
         with pytest.raises(ValueError, match="multispecies analytical pair fitting"):
             read_potential(str(path))
+
+
+def test_read_tersoff_toml(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "tersoff.toml",
+        """
+[potential]
+family = "tersoff"
+cutoff_skin = 0.4
+
+[species]
+order = ["Si"]
+
+[triplet.SiSiSi]
+initial = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, TersoffData)
+    assert data.species == ["Si"]
+    assert data.cutoff_skin == 0.4
+    assert data.number_of_parameters_optimized == 14
+    np.testing.assert_allclose(
+        data.parameters,
+        np.arange(1.0, 15.0, dtype=float),
+    )
+
+
+def test_read_tersoff_toml_preserves_species_order(tmp_path: Path) -> None:
+    triplets = [
+        "SiSiSi",
+        "SiSiC",
+        "SiCSi",
+        "SiCC",
+        "CSiSi",
+        "CSiC",
+        "CCSi",
+        "CCC",
+    ]
+    blocks = "\n".join(
+        f"[triplet.{triplet}]\ninitial = [{idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0, {idx}.0]"
+        for idx, triplet in enumerate(triplets, start=1)
+    )
+    path = _write_text(
+        tmp_path / "tersoff_order.toml",
+        f"""
+[potential]
+family = "tersoff"
+
+[species]
+order = ["C", "Si"]
+
+{blocks}
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, TersoffData)
+    assert data.species == ["C", "Si"]
+    np.testing.assert_allclose(data.parameter_table[1, 1, 1], np.full(14, 1.0))
+    np.testing.assert_allclose(data.parameter_table[0, 0, 0], np.full(14, 8.0))
 
 
 def test_read_tabulated_eam_toml(tmp_path: Path) -> None:
