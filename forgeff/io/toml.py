@@ -282,6 +282,26 @@ def _grid_from(data: dict[str, Any], potential: dict[str, Any], name: str) -> np
     value = grids.get(name, potential.get(f"{name}_grid", potential.get(name)))
     if value is None:
         raise ValueError(f"TOML potential is missing the '{name}' grid.")
+    if isinstance(value, dict):
+        if not {"start", "stop", "step"} <= set(value):
+            raise ValueError(
+                f"Grid '{name}' must define start, stop, and step when using compact grid syntax."
+            )
+        start = float(value["start"])
+        stop = float(value["stop"])
+        step = float(value["step"])
+        if step <= 0.0:
+            raise ValueError(f"Grid '{name}' step must be positive.")
+        span = stop - start
+        if span < 0.0:
+            raise ValueError(f"Grid '{name}' stop must be greater than or equal to start.")
+        n_float = span / step
+        n_round = int(np.round(n_float))
+        if not np.isclose(n_float, n_round, rtol=1e-12, atol=1e-12):
+            raise ValueError(
+                f"Grid '{name}' stop-start must be an integer multiple of step for compact grid syntax."
+            )
+        return np.linspace(start, stop, n_round + 1, dtype=float)
     arr = np.asarray(value, dtype=float)
     if arr.ndim != 1 or arr.size == 0:
         raise ValueError(f"Grid '{name}' must be a one-dimensional array.")

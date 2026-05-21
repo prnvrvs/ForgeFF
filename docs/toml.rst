@@ -79,6 +79,17 @@ The general structure is:
   ``[dipole.*]``, and ``[quadrupole.*]``
 - ``[parameters]``: optional container for analytical starting values
 
+For tabulated EAM and ADP, the user input is the grid definition plus the term
+values:
+
+- ``[grids].r`` and ``[grids].rho`` may be explicit lists of sample points
+- or they may use the compact form ``{ start = ..., stop = ..., step = ... }``
+- the loader expands the compact form into a uniform grid internally
+- the number of points is still determined by the resulting grid length
+
+For Tersoff, the user input is one 14-parameter row per ordered species
+triple, so there is no separate ``r`` or ``rho`` grid in the TOML file.
+
 Tabulated EAM and ADP term blocks also accept ``optimize = false`` to freeze
 that block during fitting. By default, blocks are optimized. The same freeze
 logic is available in Python by setting ``pot.optimized`` to the block names
@@ -135,6 +146,11 @@ Here is the short version of what each part means:
 The runtime engine is set in the training setting file, for example
 ``examples/toml/eam/alloy/forgeff.train.toml`` uses ``[common].engine =
 "numba"``.
+
+When ForgeFF exports tabulated EAM, ADP, or Tersoff files to LAMMPS format, it
+preserves the data already stored in the potential object. Export does not ask
+for new grid sizes; it writes the grids or triplet rows that were supplied in
+the input potential.
 
 If the file format is ambiguous, use an explicit format hint, just like ASE.
 

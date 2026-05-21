@@ -14,7 +14,7 @@ def _repo_root() -> Path:
 
 
 def _potfit_ase_dir() -> Path:
-    return _repo_root() / "tests" / "fixtures" / "potfit_test_data" / "ase"
+    return _repo_root() / "tests" / "data_path" / "potfit" / "ase"
 
 
 def _read_outcar(path: Path) -> list:

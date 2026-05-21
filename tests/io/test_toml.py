@@ -811,6 +811,41 @@ values = [1.3, 1.4, 1.5]
     np.testing.assert_allclose(data.quadrupole_values[0, 0], [1.3, 1.4, 1.5])
 
 
+def test_read_tabulated_eam_compact_grid_toml(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "eam_compact_grid.toml",
+        """
+[potential]
+family = "eam"
+form = "alloy"
+
+[species]
+order = ["Al"]
+
+[grids]
+r = { start = 0.0, stop = 0.2, step = 0.1 }
+rho = { start = 0.0, stop = 0.2, step = 0.1 }
+
+[pair.AlAl]
+values = [0.1, 0.2, 0.3]
+
+[density.Al]
+values = [0.4, 0.5, 0.6]
+
+[embedding.Al]
+values = [0.7, 0.8, 0.9]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, EAMData)
+    np.testing.assert_allclose(data.r_grid, [0.0, 0.1, 0.2])
+    np.testing.assert_allclose(data.rho_grid, [0.0, 0.1, 0.2])
+    np.testing.assert_allclose(data.phi_values[0, 0], [0.1, 0.2, 0.3])
+    np.testing.assert_allclose(data.rho_values[0, 0], [0.4, 0.5, 0.6])
+    np.testing.assert_allclose(data.emb_values[0], [0.7, 0.8, 0.9])
+
+
 def test_read_toml_missing_required_terms_raises(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "invalid.toml",

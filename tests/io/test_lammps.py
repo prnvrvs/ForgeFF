@@ -4,10 +4,13 @@ from pathlib import Path
 
 import numpy as np
 from numpy.testing import assert_allclose
+from ase import Atoms
 from ase.build import bulk
 from ase.calculators.eam import EAM as ASEEAM
 
+from forgeff.calculator import make_calculator
 from forgeff.io import read_potential, write_lammps_potential
+from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
 
 
@@ -20,6 +23,113 @@ def _assert_same_results(calc_a, calc_b, atoms) -> None:
     assert_allclose(atoms_a.get_potential_energy(), atoms_b.get_potential_energy(), rtol=1e-12, atol=1e-12)
     assert_allclose(atoms_a.get_forces(), atoms_b.get_forces(), rtol=1e-11, atol=1e-11)
     assert_allclose(atoms_a.get_stress(), atoms_b.get_stress(), rtol=1e-10, atol=1e-10)
+
+
+def _fs_test_atoms(seed: int = 2024) -> Atoms:
+    atoms = bulk("Al", "fcc", a=4.05, cubic=True) * (2, 2, 2)
+    numbers = np.array([13, 29] * (len(atoms) // 2), dtype=int)
+    rng = np.random.default_rng(seed)
+    rng.shuffle(numbers)
+    atoms.numbers = numbers
+    atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
+    return atoms
+
+
+def _fs_tabulated_potential() -> EAMData:
+    r_grid = np.array([0.0, 1.0, 2.0, 3.0, 4.0], dtype=float)
+    rho_grid = np.array([0.0, 1.0, 2.0, 3.0, 4.0], dtype=float)
+    phi_values = np.array(
+        [
+            [[0.10, 0.20, 0.30, 0.40, 0.50], [0.15, 0.25, 0.35, 0.45, 0.55]],
+            [[0.15, 0.25, 0.35, 0.45, 0.55], [0.20, 0.30, 0.40, 0.50, 0.60]],
+        ],
+        dtype=float,
+    )
+    rho_values = np.array(
+        [
+            [[0.05, 0.10, 0.15, 0.20, 0.25], [0.07, 0.14, 0.21, 0.28, 0.35]],
+            [[0.07, 0.14, 0.21, 0.28, 0.35], [0.11, 0.22, 0.33, 0.44, 0.55]],
+        ],
+        dtype=float,
+    )
+    emb_values = np.array(
+        [[0.00, -0.10, -0.20, -0.30, -0.40], [0.10, 0.00, -0.10, -0.20, -0.30]],
+        dtype=float,
+    )
+    pot = EAMData(
+        form="fs",
+        species_count=2,
+        r_grid=r_grid,
+        rho_grid=rho_grid,
+        phi_values=phi_values,
+        rho_values=rho_values,
+        emb_values=emb_values,
+        rphi_values=r_grid[None, None, :] * phi_values,
+    )
+    pot.species = np.array([13, 29], dtype=np.int32)
+    return pot
+
+
+def _fs_analytical_toml() -> str:
+    return """
+[potential]
+family = "eam"
+form = "fs"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = { start = 0.0, stop = 4.0, step = 1.0 }
+rho = { start = 0.0, stop = 4.0, step = 1.0 }
+
+[pair.AlAl]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.10, 0.10]
+
+[pair.AlCu]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.15, 0.10]
+
+[pair.CuCu]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.20, 0.10]
+
+[density.AlAl]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.05, 0.05]
+
+[density.AlCu]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.07, 0.07]
+
+[density.CuAl]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.07, 0.07]
+
+[density.CuCu]
+expression = "A + B * r"
+parameter_names = ["A", "B"]
+initial = [0.11, 0.11]
+
+[embedding.Al]
+expression = "A + B * rho"
+variable = "rho"
+parameter_names = ["A", "B"]
+initial = [0.00, -0.10]
+
+[embedding.Cu]
+expression = "A + B * rho"
+variable = "rho"
+parameter_names = ["A", "B"]
+initial = [0.10, -0.10]
+""".strip() + "\n"
 
 
 def test_write_lammps_alloy_roundtrip(tmp_path: Path) -> None:
@@ -68,6 +178,74 @@ def test_write_lammps_adp_roundtrip(tmp_path: Path) -> None:
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
 
     _assert_same_results(ASEEAM(potential=source, form="adp"), ASEEAM(potential=str(output), form="adp"), atoms)
+
+
+def test_write_lammps_alloy_resamples_grid(tmp_path: Path) -> None:
+    pot = EAMData(
+        form="alloy",
+        species_count=1,
+        r_grid=np.array([0.0, 1.0, 2.0]),
+        rho_grid=np.array([0.0, 1.0, 2.0]),
+        phi_values=np.zeros((1, 1, 3)),
+        rho_values=np.array([[[0.0, 1.0, 2.0]]]),
+        emb_values=np.array([[0.0, 1.0, 2.0]]),
+        rphi_values=np.array([[[0.0, 1.0, 2.0]]]),
+    )
+    pot.species = np.array([13], dtype=np.int32)
+
+    output = tmp_path / "Al99.eam.alloy"
+    write_lammps_potential(output, pot, nr=5, nrho=4)
+
+    lines = [line for line in output.read_text().splitlines() if line and line[0] in "-.0123456789"]
+    assert lines[0] == "1 Al"
+    assert lines[1].startswith("4 ")
+    assert lines[1].split()[0] == "4"
+    assert lines[1].split()[2] == "5"
+
+    embedding = [float(value) for value in lines[3:7]]
+    density = [float(value) for value in lines[7:12]]
+    pair = [float(value) for value in lines[12:17]]
+    assert_allclose(embedding, [0.0, 2.0 / 3.0, 4.0 / 3.0, 2.0], rtol=0, atol=1e-12)
+    assert_allclose(density, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
+    assert_allclose(pair, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
+
+
+def test_write_lammps_fs_resampled_grid_matches_source(tmp_path: Path) -> None:
+    pot = _fs_tabulated_potential()
+    atoms = _fs_test_atoms()
+
+    coarse = tmp_path / "synthetic.fs"
+    fine = tmp_path / "synthetic_fine.fs"
+    write_lammps_potential(coarse, pot)
+    write_lammps_potential(fine, pot, nr=7, nrho=9)
+
+    source_calc = make_calculator(pot, engine="numba")
+    coarse_calc = ASEEAM(potential=str(coarse), form="fs")
+    fine_calc = ASEEAM(potential=str(fine), form="fs")
+
+    _assert_same_results(source_calc, coarse_calc, atoms)
+    _assert_same_results(source_calc, fine_calc, atoms)
+    _assert_same_results(coarse_calc, fine_calc, atoms)
+
+
+def test_write_lammps_fs_analytical_resampled_grid_matches_source(tmp_path: Path) -> None:
+    path = tmp_path / "synthetic.toml"
+    path.write_text(_fs_analytical_toml(), encoding="utf-8")
+    pot = read_potential(str(path))
+    atoms = _fs_test_atoms(seed=2025)
+
+    coarse = tmp_path / "synthetic_analytical.fs"
+    fine = tmp_path / "synthetic_analytical_fine.fs"
+    write_lammps_potential(coarse, pot)
+    write_lammps_potential(fine, pot, nr=7, nrho=9)
+
+    source_calc = make_calculator(pot, engine="numba")
+    coarse_calc = ASEEAM(potential=str(coarse), form="fs")
+    fine_calc = ASEEAM(potential=str(fine), form="fs")
+
+    _assert_same_results(source_calc, coarse_calc, atoms)
+    _assert_same_results(source_calc, fine_calc, atoms)
+    _assert_same_results(coarse_calc, fine_calc, atoms)
 
 
 def test_write_lammps_tersoff_roundtrip(tmp_path: Path) -> None:

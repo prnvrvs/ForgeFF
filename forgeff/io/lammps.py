@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 from ase.data import atomic_masses, chemical_symbols
+from scipy.interpolate import CubicSpline
 
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
@@ -46,10 +47,30 @@ def _write_rows(fd, values: np.ndarray, *, numformat: str = "%.16e", nc: int = 1
         np.savetxt(fd, arr.reshape(arr.shape[0], -1), fmt=arr.shape[1] * [numformat])
 
 
+def _uniform_grid(grid: np.ndarray, count: int | None) -> np.ndarray:
+    source = np.asarray(grid, dtype=float)
+    if source.ndim != 1 or source.size < 2:
+        raise ValueError("EAM/ADP export requires at least two points on each grid.")
+    target_count = int(count) if count is not None else int(source.size)
+    if target_count < 2:
+        raise ValueError("EAM/ADP export requires at least two points on each exported grid.")
+    return np.linspace(0.0, float(source[-1]), target_count, dtype=float)
+
+
+def _resample_values(source_grid: np.ndarray, values: np.ndarray, target_grid: np.ndarray) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    if arr.shape[-1] != len(source_grid):
+        raise ValueError("Grid length does not match the last axis of the tabulated values.")
+    spline = CubicSpline(np.asarray(source_grid, dtype=float), arr, axis=-1)
+    return np.asarray(spline(target_grid), dtype=float)
+
+
 def _write_common_header(
     fd,
     data: EAMData | ADPData,
     *,
+    r_grid: np.ndarray,
+    rho_grid: np.ndarray,
     header: list[str] | None = None,
     lattice: list[str] | None = None,
     a: list[float] | None = None,
@@ -74,15 +95,22 @@ def _write_common_header(
 
     fd.write(f"{len(elements)} {' '.join(elements)}\n")
     fd.write(
-        f"{len(np.asarray(data.rho_grid, dtype=float))} {float(np.asarray(data.rho_grid, dtype=float)[1] - np.asarray(data.rho_grid, dtype=float)[0])} "
-        f"{len(np.asarray(data.r_grid, dtype=float))} {float(np.asarray(data.r_grid, dtype=float)[1] - np.asarray(data.r_grid, dtype=float)[0])} "
-        f"{float(np.asarray(data.r_grid, dtype=float)[-1])}\n"
+        f"{len(rho_grid)} {float(rho_grid[1] - rho_grid[0])} "
+        f"{len(r_grid)} {float(r_grid[1] - r_grid[0])} "
+        f"{float(r_grid[-1])}\n"
     )
 
 
-def _write_eam_body(fd, data: EAMData, *, numformat: str = "%.16e") -> None:
-    r = np.asarray(data.r_grid, dtype=float)
-    rho = np.asarray(data.rho_grid, dtype=float)
+def _write_eam_body(
+    fd,
+    data: EAMData,
+    *,
+    r_grid: np.ndarray,
+    rho_grid: np.ndarray,
+    numformat: str = "%.16e",
+) -> None:
+    r = np.asarray(r_grid, dtype=float)
+    rho = np.asarray(rho_grid, dtype=float)
     species = np.asarray(data.species, dtype=int)
     masses = _species_masses(species)
     lattices = _species_lattice(species, None)
@@ -90,32 +118,48 @@ def _write_eam_body(fd, data: EAMData, *, numformat: str = "%.16e") -> None:
 
     for i in range(data.species_count):
         fd.write(f"{int(species[i])} {masses[i]:f} {a_values[i]:f} {lattices[i]}\n")
-        _write_rows(fd, np.asarray(data.emb_values, dtype=float)[i], numformat=numformat)
+        _write_rows(fd, _resample_values(data.rho_grid, np.asarray(data.emb_values, dtype=float)[i], rho), numformat=numformat)
         if data.form == "fs":
             for j in range(data.species_count):
-                _write_rows(fd, np.asarray(data.rho_values, dtype=float)[i, j], numformat=numformat)
+                _write_rows(
+                    fd,
+                    _resample_values(data.r_grid, np.asarray(data.rho_values, dtype=float)[i, j], r),
+                    numformat=numformat,
+                )
         else:
-            _write_rows(fd, np.asarray(data.rho_values, dtype=float).diagonal(axis1=0, axis2=1).T[i], numformat=numformat)
+            density = np.asarray(data.rho_values, dtype=float).diagonal(axis1=0, axis2=1).T[i]
+            _write_rows(fd, _resample_values(data.r_grid, density, r), numformat=numformat)
 
     for i in range(data.species_count):
         for j in range(i + 1):
             if getattr(data, "rphi_values", None) is not None:
-                pair = np.asarray(data.rphi_values, dtype=float)[j, i]
+                pair = _resample_values(data.r_grid, np.asarray(data.rphi_values, dtype=float)[j, i], r)
             else:
-                pair = r * np.asarray(data.phi_values, dtype=float)[j, i]
+                pair = r * _resample_values(data.r_grid, np.asarray(data.phi_values, dtype=float)[j, i], r)
             _write_rows(fd, pair, numformat=numformat)
 
 
-def _write_adp_body(fd, data: ADPData, *, numformat: str = "%.16e") -> None:
-    _write_eam_body(fd, data, numformat=numformat)
+def _write_adp_body(
+    fd,
+    data: ADPData,
+    *,
+    r_grid: np.ndarray,
+    rho_grid: np.ndarray,
+    numformat: str = "%.16e",
+) -> None:
+    _write_eam_body(fd, data, r_grid=r_grid, rho_grid=rho_grid, numformat=numformat)
 
     for i in range(data.species_count):
         for j in range(i + 1):
-            _write_rows(fd, np.asarray(data.dipole_values, dtype=float)[i, j], numformat=numformat)
+            r = np.asarray(r_grid, dtype=float)
+            dipole = _resample_values(data.r_grid, np.asarray(data.dipole_values, dtype=float)[i, j], r)
+            _write_rows(fd, dipole, numformat=numformat)
 
     for i in range(data.species_count):
         for j in range(i + 1):
-            _write_rows(fd, np.asarray(data.quadrupole_values, dtype=float)[i, j], numformat=numformat)
+            r = np.asarray(r_grid, dtype=float)
+            quadrupole = _resample_values(data.r_grid, np.asarray(data.quadrupole_values, dtype=float)[i, j], r)
+            _write_rows(fd, quadrupole, numformat=numformat)
 
 
 def _write_tersoff_body(fd, data: TersoffData, *, numformat: str = "%.16e") -> None:
@@ -170,6 +214,8 @@ def write_lammps_potential(
     lattice: list[str] | None = None,
     a: list[float] | None = None,
     mass: list[float] | None = None,
+    nr: int | None = None,
+    nrho: int | None = None,
 ) -> None:
     """Write an EAM/ADP potential to a LAMMPS-compatible file."""
     path = Path(filename)
@@ -189,17 +235,15 @@ def write_lammps_potential(
         if not path.name.endswith(".eam.alloy"):
             raise ValueError("Alloy EAM export requires an output filename ending in .eam.alloy")
 
-    r = np.asarray(data.r_grid, dtype=float)
-    rho = np.asarray(data.rho_grid, dtype=float)
-    if r.size < 2 or rho.size < 2:
-        raise ValueError("EAM/ADP export requires at least two points on each grid.")
+    r_grid = _uniform_grid(data.r_grid, nr)
+    rho_grid = _uniform_grid(data.rho_grid, nrho)
 
     with open(path, "w", encoding="utf-8") as fd:
-        _write_common_header(fd, data, header=header, lattice=lattice, a=a, mass=mass)
+        _write_common_header(fd, data, r_grid=r_grid, rho_grid=rho_grid, header=header, lattice=lattice, a=a, mass=mass)
         if isinstance(data, ADPData):
-            _write_adp_body(fd, data)
+            _write_adp_body(fd, data, r_grid=r_grid, rho_grid=rho_grid)
         else:
-            _write_eam_body(fd, data)
+            _write_eam_body(fd, data, r_grid=r_grid, rho_grid=rho_grid)
 
 
 def read_lammps_tersoff_potential(filename: str | Path) -> TersoffData:

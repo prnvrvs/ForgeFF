@@ -1,32 +1,33 @@
 ``forgeff export``
 ==================
 
-The ``forgeff export`` command converts a fitted potential file into a
+The ``forgeff export`` command converts a potential file into a
 LAMMPS-compatible EAM, ADP, or Tersoff file.
 
-It accepts the same potential inputs as the rest of ForgeFF:
+It accepts:
 
-- ``.toml`` potential descriptions
-- fitted ``.npy`` checkpoints
-- NIST-style EAM/ADP files
-- standard Tersoff ``.tersoff`` files
+- ``family = "eam"`` -> ``.eam.alloy`` or ``.fs``
+- ``family = "adp"`` -> ``.adp``
+- ``family = "tersoff"`` -> ``.tersoff``
+- ForgeFF fitted ``.npy`` checkpoints for the same families
 
 Usage
 -----
 
 .. code-block:: bash
 
+   forgeff export initial.toml final.eam.alloy
+   forgeff export initial.toml final.fs
+   forgeff export initial.toml final.adp
+   forgeff export initial.toml final.tersoff
    forgeff export final.npy final.eam.alloy
    forgeff export final.npy final.fs
    forgeff export final.npy final.adp
-   forgeff export final.npy final.tersoff
+   forgeff export initial.toml final.eam.alloy --nr 3001 --nrho 2001
 
-For ambiguous NIST inputs such as ``.txt`` files, pass an explicit format hint
-just like ASE:
-
-.. code-block:: bash
-
-   forgeff export potential.txt final.adp --form adp
+For tabulated EAM and ADP potentials, ``--nr`` and ``--nrho`` resample the
+export onto a uniform grid before writing the LAMMPS table. When omitted, the
+export uses the source grid length.
 
 The export path is intended for tabulated EAM, ADP, and standard Tersoff
 potentials. The output is written in LAMMPS-compatible format so it can be

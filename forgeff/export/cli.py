@@ -14,13 +14,19 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="Output LAMMPS-compatible file, such as final.eam.alloy, final.fs, or final.adp.",
     )
     parser.add_argument(
-        "--form",
+        "--nr",
+        type=int,
         default=None,
-        help="Explicit format hint for ambiguous inputs such as NIST .txt files.",
+        help="Number of radial samples to write for exported EAM/ADP tables.",
+    )
+    parser.add_argument(
+        "--nrho",
+        type=int,
+        default=None,
+        help="Number of density samples to write for exported EAM/ADP tables.",
     )
 
 
 def run(args: argparse.Namespace) -> None:
-    data = read_potential(args.input, form=args.form)
-    write_lammps_potential(args.output, data)
-
+    data = read_potential(args.input)
+    write_lammps_potential(args.output, data, nr=args.nr, nrho=args.nrho)
