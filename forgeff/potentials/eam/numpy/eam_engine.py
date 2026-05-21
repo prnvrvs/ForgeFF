@@ -64,69 +64,77 @@ def _spline_deriv_2d(coeffs, x, x0, h, idx0, idx1):
     return 3.0 * coeffs[0, idx, idx0, idx1] * dx * dx + 2.0 * coeffs[1, idx, idx0, idx1] * dx + coeffs[2, idx, idx0, idx1]
 
 
+def _spline_eval_many(coeffs, x, x0, h):
+    arr = np.asarray(x, dtype=float).reshape(-1)
+    nseg = coeffs.shape[1]
+    idx = np.clip(((arr - x0) / h).astype(np.int64), 0, nseg - 1)
+    dx = (arr - (x0 + idx * h)).reshape((arr.size,) + (1,) * (coeffs.ndim - 2))
+    c0 = coeffs[0, idx]
+    c1 = coeffs[1, idx]
+    c2 = coeffs[2, idx]
+    c3 = coeffs[3, idx]
+    return (((c0 * dx + c1) * dx + c2) * dx + c3)
+
+
+def _spline_deriv_many(coeffs, x, x0, h):
+    arr = np.asarray(x, dtype=float).reshape(-1)
+    nseg = coeffs.shape[1]
+    idx = np.clip(((arr - x0) / h).astype(np.int64), 0, nseg - 1)
+    dx = (arr - (x0 + idx * h)).reshape((arr.size,) + (1,) * (coeffs.ndim - 2))
+    c0 = coeffs[0, idx]
+    c1 = coeffs[1, idx]
+    c2 = coeffs[2, idx]
+    return 3.0 * c0 * dx * dx + 2.0 * c1 * dx + c2
+
+
 def _calculate_eam_alloy(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coeffs, phi_coeffs, drho, dr, rho_start, r_start):
     natoms = types.shape[0]
     total_density = np.zeros(natoms)
     site_energies = np.zeros(natoms)
-    pair_energy_sum = 0.0
+    if dist.size == 0:
+        return 0.0, 0.0, total_density, site_energies, np.zeros((natoms, 3)), np.zeros((natoms, 3, 3))
 
-    for k in range(dist.shape[0]):
-        i = int(i_list[k])
-        j = int(j_list[k])
-        r = float(dist[k])
-        if r <= 0.0:
-            continue
-        ti = int(types[i])
-        tj = int(types[j])
-        pair_energy = _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
-        pair_energy_sum += pair_energy
-        if i < j:
-            site_energies[i] += 0.5 * pair_energy
-            site_energies[j] += 0.5 * pair_energy
-        total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
+    ti = types[i_list]
+    tj = types[j_list]
+    pair_idx = np.arange(dist.shape[0], dtype=np.int64)
+    phi_all = _spline_eval_many(phi_coeffs, dist, r_start, dr)
+    dens_all = _spline_eval_many(dens_coeffs, dist, r_start, dr)
+    dphi_all = _spline_deriv_many(phi_coeffs, dist, r_start, dr)
+    ddens_j_all = _spline_deriv_many(dens_coeffs, dist, r_start, dr)
+    ddens_i_all = _spline_deriv_many(dens_coeffs, dist, r_start, dr)
 
-    pair_energy = 0.5 * pair_energy_sum
-    embedding_energy = 0.0
-    d_emb = np.zeros(natoms)
-    for i in range(natoms):
-        ti = int(types[i])
-        emb_i = _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        embedding_energy += emb_i
-        site_energies[i] += emb_i
+    phi_vals = phi_all[pair_idx, ti, tj]
+    dens_vals = dens_all[pair_idx, tj]
+    dphi_vals = dphi_all[pair_idx, ti, tj]
+    ddens_j = ddens_j_all[pair_idx, tj]
+    ddens_i = ddens_i_all[pair_idx, ti]
+
+    pair_energy_sum = float(np.sum(phi_vals))
+    pair_mask = i_list < j_list
+    if np.any(pair_mask):
+        half_pair = 0.5 * phi_vals[pair_mask]
+        np.add.at(site_energies, i_list[pair_mask], half_pair)
+        np.add.at(site_energies, j_list[pair_mask], half_pair)
+
+    np.add.at(total_density, i_list, dens_vals)
+
+    emb_all = _spline_eval_many(emb_coeffs, total_density, rho_start, drho)
+    d_emb_all = _spline_deriv_many(emb_coeffs, total_density, rho_start, drho)
+    atom_idx = np.arange(natoms, dtype=np.int64)
+    emb_i = emb_all[atom_idx, types]
+    d_emb = d_emb_all[atom_idx, types]
+    site_energies += emb_i
 
     forces = np.zeros((natoms, 3))
     stresses = np.zeros((natoms, 3, 3))
-    for k in range(dist.shape[0]):
-        i = int(i_list[k])
-        j = int(j_list[k])
-        r = float(dist[k])
-        if r <= 0.0:
-            continue
-        ti = int(types[i])
-        tj = int(types[j])
-        scale = (
-            _spline_deriv_2d(phi_coeffs, r, r_start, dr, ti, tj)
-            + d_emb[i] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, tj)
-            + d_emb[j] * _spline_deriv_1d(dens_coeffs, r, r_start, dr, ti)
-        )
+    scale = dphi_vals + d_emb[i_list] * ddens_j + d_emb[j_list] * ddens_i
+    unit = rvec / dist[:, None]
+    pair_force = scale[:, None] * unit
+    np.add.at(forces, i_list, pair_force)
+    np.add.at(stresses, i_list, pair_force[:, :, None] * rvec[:, None, :])
 
-        fx = scale * rvec[k, 0] / r
-        fy = scale * rvec[k, 1] / r
-        fz = scale * rvec[k, 2] / r
-        forces[i, 0] += fx
-        forces[i, 1] += fy
-        forces[i, 2] += fz
-        stresses[i, 0, 0] += fx * rvec[k, 0]
-        stresses[i, 0, 1] += fx * rvec[k, 1]
-        stresses[i, 0, 2] += fx * rvec[k, 2]
-        stresses[i, 1, 0] += fy * rvec[k, 0]
-        stresses[i, 1, 1] += fy * rvec[k, 1]
-        stresses[i, 1, 2] += fy * rvec[k, 2]
-        stresses[i, 2, 0] += fz * rvec[k, 0]
-        stresses[i, 2, 1] += fz * rvec[k, 1]
-        stresses[i, 2, 2] += fz * rvec[k, 2]
-
+    pair_energy = 0.5 * pair_energy_sum
+    embedding_energy = float(np.sum(emb_i))
     return pair_energy, embedding_energy, total_density, site_energies, forces, stresses
 
 
@@ -134,66 +142,49 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coeffs
     natoms = types.shape[0]
     total_density = np.zeros(natoms)
     site_energies = np.zeros(natoms)
-    pair_energy_sum = 0.0
+    if dist.size == 0:
+        return 0.0, 0.0, total_density, site_energies, np.zeros((natoms, 3)), np.zeros((natoms, 3, 3))
 
-    for k in range(dist.shape[0]):
-        i = int(i_list[k])
-        j = int(j_list[k])
-        r = float(dist[k])
-        if r <= 0.0:
-            continue
-        ti = int(types[i])
-        tj = int(types[j])
-        pair_energy = _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
-        pair_energy_sum += pair_energy
-        if i < j:
-            site_energies[i] += 0.5 * pair_energy
-            site_energies[j] += 0.5 * pair_energy
-        total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, tj, ti)
+    ti = types[i_list]
+    tj = types[j_list]
+    pair_idx = np.arange(dist.shape[0], dtype=np.int64)
+    pair_energy_all = _spline_eval_many(phi_coeffs, dist, r_start, dr)
+    dens_all = _spline_eval_many(dens_coeffs, dist, r_start, dr)
+    dphi_all = _spline_deriv_many(phi_coeffs, dist, r_start, dr)
+    ddens_ij_all = _spline_deriv_many(dens_coeffs, dist, r_start, dr)
+    ddens_ji_all = _spline_deriv_many(dens_coeffs, dist, r_start, dr)
 
-    pair_energy = 0.5 * pair_energy_sum
-    embedding_energy = 0.0
-    d_emb = np.zeros(natoms)
-    for i in range(natoms):
-        ti = int(types[i])
-        emb_i = _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        embedding_energy += emb_i
-        site_energies[i] += emb_i
+    pair_energy_vals = pair_energy_all[pair_idx, ti, tj]
+    dens_vals = dens_all[pair_idx, tj, ti]
+    dphi_vals = dphi_all[pair_idx, ti, tj]
+    ddens_ij = ddens_ij_all[pair_idx, tj, ti]
+    ddens_ji = ddens_ji_all[pair_idx, ti, tj]
+
+    pair_energy_sum = float(np.sum(pair_energy_vals))
+    pair_mask = i_list < j_list
+    if np.any(pair_mask):
+        half_pair = 0.5 * pair_energy_vals[pair_mask]
+        np.add.at(site_energies, i_list[pair_mask], half_pair)
+        np.add.at(site_energies, j_list[pair_mask], half_pair)
+    np.add.at(total_density, i_list, dens_vals)
+
+    emb_all = _spline_eval_many(emb_coeffs, total_density, rho_start, drho)
+    d_emb_all = _spline_deriv_many(emb_coeffs, total_density, rho_start, drho)
+    atom_idx = np.arange(natoms, dtype=np.int64)
+    emb_i = emb_all[atom_idx, types]
+    d_emb = d_emb_all[atom_idx, types]
+    site_energies += emb_i
 
     forces = np.zeros((natoms, 3))
     stresses = np.zeros((natoms, 3, 3))
-    for k in range(dist.shape[0]):
-        i = int(i_list[k])
-        j = int(j_list[k])
-        r = float(dist[k])
-        if r <= 0.0:
-            continue
-        ti = int(types[i])
-        tj = int(types[j])
+    scale = dphi_vals + d_emb[i_list] * ddens_ij + d_emb[j_list] * ddens_ji
+    unit = rvec / dist[:, None]
+    pair_force = scale[:, None] * unit
+    np.add.at(forces, i_list, pair_force)
+    np.add.at(stresses, i_list, pair_force[:, :, None] * rvec[:, None, :])
 
-        scale = (
-            _spline_deriv_2d(phi_coeffs, r, r_start, dr, ti, tj)
-            + d_emb[i] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, tj, ti)
-            + d_emb[j] * _spline_deriv_2d(dens_coeffs, r, r_start, dr, ti, tj)
-        )
-
-        fx = scale * rvec[k, 0] / r
-        fy = scale * rvec[k, 1] / r
-        fz = scale * rvec[k, 2] / r
-        forces[i, 0] += fx
-        forces[i, 1] += fy
-        forces[i, 2] += fz
-        stresses[i, 0, 0] += fx * rvec[k, 0]
-        stresses[i, 0, 1] += fx * rvec[k, 1]
-        stresses[i, 0, 2] += fx * rvec[k, 2]
-        stresses[i, 1, 0] += fy * rvec[k, 0]
-        stresses[i, 1, 1] += fy * rvec[k, 1]
-        stresses[i, 1, 2] += fy * rvec[k, 2]
-        stresses[i, 2, 0] += fz * rvec[k, 0]
-        stresses[i, 2, 1] += fz * rvec[k, 1]
-        stresses[i, 2, 2] += fz * rvec[k, 2]
-
+    pair_energy = 0.5 * pair_energy_sum
+    embedding_energy = float(np.sum(emb_i))
     return pair_energy, embedding_energy, total_density, site_energies, forces, stresses
 
 

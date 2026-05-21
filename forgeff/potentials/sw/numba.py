@@ -30,20 +30,35 @@ def _pair_energy_and_dedr_numba(r, params):
 
 
 @numba.njit(cache=False)
-def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, costheta0):
+def _triplet_energy_and_forces_numba(
+    rij0,
+    rij1,
+    rij2,
+    rik0,
+    rik1,
+    rik2,
+    pair_ij,
+    pair_ik,
+    lambda_value,
+    costheta0,
+):
     gamma_ij = pair_ij[6]
     a2_ij = pair_ij[7]
     gamma_ik = pair_ik[6]
     a2_ik = pair_ik[7]
 
-    u = np.sqrt(rij[0] * rij[0] + rij[1] * rij[1] + rij[2] * rij[2])
-    v = np.sqrt(rik[0] * rik[0] + rik[1] * rik[1] + rik[2] * rik[2])
+    u = np.sqrt(rij0 * rij0 + rij1 * rij1 + rij2 * rij2)
+    v = np.sqrt(rik0 * rik0 + rik1 * rik1 + rik2 * rik2)
     if u <= 0.0 or v <= 0.0 or u >= a2_ij or v >= a2_ik:
         return 0.0, np.zeros(3), np.zeros(3), np.zeros(3)
 
-    u_hat = rij / u
-    v_hat = rik / v
-    c = u_hat[0] * v_hat[0] + u_hat[1] * v_hat[1] + u_hat[2] * v_hat[2]
+    u_hat0 = rij0 / u
+    u_hat1 = rij1 / u
+    u_hat2 = rij2 / u
+    v_hat0 = rik0 / v
+    v_hat1 = rik1 / v
+    v_hat2 = rik2 / v
+    c = u_hat0 * v_hat0 + u_hat1 * v_hat1 + u_hat2 * v_hat2
     expo_u = np.exp(gamma_ij / (u - a2_ij))
     expo_v = np.exp(gamma_ik / (v - a2_ik))
     g = (c + costheta0) ** 2
@@ -56,12 +71,12 @@ def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, c
     dE_dv = d_pref_dv * g
     dE_dc = pref * 2.0 * (c + costheta0)
 
-    dc_drij0 = (v_hat[0] - c * u_hat[0]) / u
-    dc_drij1 = (v_hat[1] - c * u_hat[1]) / u
-    dc_drij2 = (v_hat[2] - c * u_hat[2]) / u
-    dc_drik0 = (u_hat[0] - c * v_hat[0]) / v
-    dc_drik1 = (u_hat[1] - c * v_hat[1]) / v
-    dc_drik2 = (u_hat[2] - c * v_hat[2]) / v
+    dc_drij0 = (v_hat0 - c * u_hat0) / u
+    dc_drij1 = (v_hat1 - c * u_hat1) / u
+    dc_drij2 = (v_hat2 - c * u_hat2) / u
+    dc_drik0 = (u_hat0 - c * v_hat0) / v
+    dc_drik1 = (u_hat1 - c * v_hat1) / v
+    dc_drik2 = (u_hat2 - c * v_hat2) / v
 
     grad_j = np.empty(3)
     grad_k = np.empty(3)
@@ -69,13 +84,13 @@ def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, c
     force_k = np.empty(3)
     force_i = np.empty(3)
 
-    grad_j[0] = dE_du * u_hat[0] + dE_dc * dc_drij0
-    grad_j[1] = dE_du * u_hat[1] + dE_dc * dc_drij1
-    grad_j[2] = dE_du * u_hat[2] + dE_dc * dc_drij2
+    grad_j[0] = dE_du * u_hat0 + dE_dc * dc_drij0
+    grad_j[1] = dE_du * u_hat1 + dE_dc * dc_drij1
+    grad_j[2] = dE_du * u_hat2 + dE_dc * dc_drij2
 
-    grad_k[0] = dE_dv * v_hat[0] + dE_dc * dc_drik0
-    grad_k[1] = dE_dv * v_hat[1] + dE_dc * dc_drik1
-    grad_k[2] = dE_dv * v_hat[2] + dE_dc * dc_drik2
+    grad_k[0] = dE_dv * v_hat0 + dE_dc * dc_drik0
+    grad_k[1] = dE_dv * v_hat1 + dE_dc * dc_drik1
+    grad_k[2] = dE_dv * v_hat2 + dE_dc * dc_drik2
 
     force_j[0] = -grad_j[0]
     force_j[1] = -grad_j[1]
@@ -95,8 +110,10 @@ def _calculate_sw(
     j_p,
     r_p,
     r_pc,
+    center_offsets,
     natoms,
     species_index,
+    species_neighbor,
     pair_parameters,
     lambda_values,
     costheta0,
@@ -147,38 +164,26 @@ def _calculate_sw(
 
     # Triplet term
     for i in range(natoms):
-        count = 0
-        for idx in range(n_neigh):
-            if int(i_p[idx]) == i:
-                count += 1
+        start = int(center_offsets[i])
+        stop = int(center_offsets[i + 1])
+        count = stop - start
         if count < 2:
             continue
 
-        neigh_j = np.empty(count, dtype=np.int64)
-        neigh_r = np.empty(count, dtype=np.float64)
-        neigh_vec = np.empty((count, 3), dtype=np.float64)
-        neigh_species = np.empty(count, dtype=np.int64)
-        pos = 0
-        for idx in range(n_neigh):
-            if int(i_p[idx]) == i:
-                neigh_j[pos] = int(j_p[idx])
-                neigh_r[pos] = r_p[idx]
-                neigh_vec[pos, 0] = r_pc[idx, 0]
-                neigh_vec[pos, 1] = r_pc[idx, 1]
-                neigh_vec[pos, 2] = r_pc[idx, 2]
-                neigh_species[pos] = int(species_index[int(j_p[idx])])
-                pos += 1
-
         ti = int(species_index[i])
-        for aidx in range(count - 1):
-            j = neigh_j[aidx]
-            tj = neigh_species[aidx]
-            rij = neigh_vec[aidx]
+        for aidx in range(start, stop - 1):
+            j = int(j_p[aidx])
+            tj = int(species_neighbor[aidx])
+            rij0 = r_pc[aidx, 0]
+            rij1 = r_pc[aidx, 1]
+            rij2 = r_pc[aidx, 2]
             pair_ij = pair_parameters[ti, tj]
-            for bidx in range(aidx + 1, count):
-                k = neigh_j[bidx]
-                tk = neigh_species[bidx]
-                rik = neigh_vec[bidx]
+            for bidx in range(aidx + 1, stop):
+                k = int(j_p[bidx])
+                tk = int(species_neighbor[bidx])
+                rik0 = r_pc[bidx, 0]
+                rik1 = r_pc[bidx, 1]
+                rik2 = r_pc[bidx, 2]
                 pair_ik = pair_parameters[ti, tk]
                 lambda_jk = lambda_values[ti, tj, tk]
                 if tj > tk:
@@ -186,7 +191,16 @@ def _calculate_sw(
                 if lambda_jk == 0.0:
                     continue
                 trip_energy, f_i, f_j, f_k = _triplet_energy_and_forces_numba(
-                    rij, rik, pair_ij, pair_ik, lambda_jk, costheta0
+                    rij0,
+                    rij1,
+                    rij2,
+                    rik0,
+                    rik1,
+                    rik2,
+                    pair_ij,
+                    pair_ik,
+                    lambda_jk,
+                    costheta0,
                 )
                 if trip_energy == 0.0:
                     continue
@@ -200,15 +214,15 @@ def _calculate_sw(
                 forces[k, 0] += f_k[0]
                 forces[k, 1] += f_k[1]
                 forces[k, 2] += f_k[2]
-                virial[0, 0] += rij[0] * f_j[0] + rik[0] * f_k[0]
-                virial[0, 1] += rij[0] * f_j[1] + rik[0] * f_k[1]
-                virial[0, 2] += rij[0] * f_j[2] + rik[0] * f_k[2]
-                virial[1, 0] += rij[1] * f_j[0] + rik[1] * f_k[0]
-                virial[1, 1] += rij[1] * f_j[1] + rik[1] * f_k[1]
-                virial[1, 2] += rij[1] * f_j[2] + rik[1] * f_k[2]
-                virial[2, 0] += rij[2] * f_j[0] + rik[2] * f_k[0]
-                virial[2, 1] += rij[2] * f_j[1] + rik[2] * f_k[1]
-                virial[2, 2] += rij[2] * f_j[2] + rik[2] * f_k[2]
+                virial[0, 0] += rij0 * f_j[0] + rik0 * f_k[0]
+                virial[0, 1] += rij0 * f_j[1] + rik0 * f_k[1]
+                virial[0, 2] += rij0 * f_j[2] + rik0 * f_k[2]
+                virial[1, 0] += rij1 * f_j[0] + rik1 * f_k[0]
+                virial[1, 1] += rij1 * f_j[1] + rik1 * f_k[1]
+                virial[1, 2] += rij1 * f_j[2] + rik1 * f_k[2]
+                virial[2, 0] += rij2 * f_j[0] + rik2 * f_k[0]
+                virial[2, 1] += rij2 * f_j[1] + rik2 * f_k[1]
+                virial[2, 2] += rij2 * f_j[2] + rik2 * f_k[2]
 
     return energy, forces, virial
 
@@ -240,13 +254,31 @@ class NumbaSWEngine:
         cutoff = sw.max_cutoff
         i_p, j_p, r_p, r_pc = neighbor_list("ijdD", atoms, cutoff)
         species_index = self._species_index(atoms)
+        natoms = len(atoms)
+        if len(i_p) > 0:
+            order = np.argsort(i_p, kind="mergesort")
+            i_sorted = np.asarray(i_p[order], dtype=np.int64)
+            j_sorted = np.asarray(j_p[order], dtype=np.int64)
+            r_sorted = np.asarray(r_p[order], dtype=np.float64)
+            r_pc_sorted = np.asarray(r_pc[order], dtype=np.float64)
+            species_neighbor = species_index[j_sorted]
+            center_offsets = np.searchsorted(i_sorted, np.arange(natoms + 1), side="left").astype(np.int64)
+        else:
+            i_sorted = np.empty(0, dtype=np.int64)
+            j_sorted = np.empty(0, dtype=np.int64)
+            r_sorted = np.empty(0, dtype=np.float64)
+            r_pc_sorted = np.empty((0, 3), dtype=np.float64)
+            species_neighbor = np.empty(0, dtype=np.int64)
+            center_offsets = np.zeros(natoms + 1, dtype=np.int64)
         energy, forces, virial = _calculate_sw(
-            np.asarray(i_p, dtype=np.int64),
-            np.asarray(j_p, dtype=np.int64),
-            np.asarray(r_p, dtype=np.float64),
-            np.asarray(r_pc, dtype=np.float64),
-            len(atoms),
+            i_sorted,
+            j_sorted,
+            r_sorted,
+            r_pc_sorted,
+            center_offsets,
+            natoms,
             species_index,
+            species_neighbor,
             np.asarray(sw.pair_parameters, dtype=np.float64),
             np.asarray(sw.lambda_values, dtype=np.float64),
             float(sw.costheta0),

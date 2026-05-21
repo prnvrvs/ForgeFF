@@ -104,96 +104,99 @@ class NumpyADPEngine:
         species_index = self._species_index(atoms)
         cutoff = float(self.r[-1])
         i_list, j_list, shifts, dist = neighbor_list("ijSd", atoms, cutoff)
+        i_list = np.asarray(i_list, dtype=np.int64)
+        j_list = np.asarray(j_list, dtype=np.int64)
+        dist = np.asarray(dist, dtype=float)
         rvec = atoms.positions[j_list] + shifts @ atoms.cell.array - atoms.positions[i_list]
 
         natoms = len(atoms)
         total_density = np.zeros(natoms, dtype=float)
-        pair_energy_sum = 0.0
         mu = np.zeros((natoms, 3), dtype=float)
         nu = np.zeros((natoms, 3, 3), dtype=float)
         site_energies = np.zeros(natoms, dtype=float)
+        pair_count = dist.shape[0]
+        if pair_count == 0:
+            results = {
+                "energy": 0.0,
+                "energies": site_energies,
+                "forces": np.zeros((natoms, 3), dtype=float),
+            }
+            if atoms.cell.rank == 3:
+                results["stress"] = np.zeros(6, dtype=float)
+            return results
 
-        for k in range(dist.shape[0]):
-            i = int(i_list[k])
-            j = int(j_list[k])
-            r = float(dist[k])
-            if r <= 0.0:
-                continue
-            ti = int(species_index[i])
-            tj = int(species_index[j])
+        ti = species_index[i_list]
+        tj = species_index[j_list]
+        pair_idx = np.arange(pair_count, dtype=np.int64)
 
-            pair_energy = float(self._phi_spline(r)[ti, tj])
-            pair_energy_sum += pair_energy
-            if i < j:
-                site_energies[i] += 0.5 * pair_energy
-                site_energies[j] += 0.5 * pair_energy
-            total_density[i] += float(self._dens_spline(r)[tj])
+        phi_all = np.moveaxis(self._phi_spline(dist), -1, 0)
+        dens_all = np.moveaxis(self._dens_spline(dist), -1, 0)
+        dip_all = np.moveaxis(self._dipole_spline(dist), -1, 0)
+        quad_all = np.moveaxis(self._quadrupole_spline(dist), -1, 0)
+        dphi_all = np.moveaxis(self._phi_spline(dist, 1), -1, 0)
+        ddens_all = np.moveaxis(self._dens_spline(dist, 1), -1, 0)
+        ddip_all = np.moveaxis(self._dipole_spline(dist, 1), -1, 0)
+        dquad_all = np.moveaxis(self._quadrupole_spline(dist, 1), -1, 0)
 
-            u = float(self._dipole_spline(r)[ti, tj])
-            mu[i] += u * rvec[k]
+        pair_energy_pair = phi_all[pair_idx, ti, tj]
+        pair_energy_sum = float(np.sum(pair_energy_pair))
+        pair_mask = i_list < j_list
+        if np.any(pair_mask):
+            half_pair = 0.5 * pair_energy_pair[pair_mask]
+            np.add.at(site_energies, i_list[pair_mask], half_pair)
+            np.add.at(site_energies, j_list[pair_mask], half_pair)
 
-            w = float(self._quadrupole_spline(r)[ti, tj])
-            nu[i] += w * np.outer(rvec[k], rvec[k])
+        dens_contrib = dens_all[pair_idx, tj]
+        np.add.at(total_density, i_list, dens_contrib)
+        np.add.at(mu, i_list, dip_all[pair_idx, ti, tj][:, None] * rvec)
+        np.add.at(
+            nu,
+            i_list,
+            quad_all[pair_idx, ti, tj][:, None, None] * (rvec[:, :, None] * rvec[:, None, :]),
+        )
 
-        pair_energy = 0.5 * pair_energy_sum
-        d_emb = np.zeros(natoms, dtype=float)
-        embedding_energy = 0.0
-        for i in range(natoms):
-            ti = int(species_index[i])
-            emb_i = float(self._emb_spline(total_density[i])[ti])
-            d_emb[i] = float(self._emb_spline(total_density[i], 1)[ti])
-            embedding_energy += emb_i
-            site_energies[i] += emb_i
+        emb_all = np.moveaxis(self._emb_spline(total_density), -1, 0)
+        emb_deriv_all = np.moveaxis(self._emb_spline(total_density, 1), -1, 0)
+        atom_idx = np.arange(natoms, dtype=np.int64)
+        emb_i = emb_all[atom_idx, species_index]
+        d_emb = emb_deriv_all[atom_idx, species_index]
+        site_energies += emb_i
 
-        dipole_energy = 0.0
-        quad_energy = 0.0
-        for i in range(natoms):
-            dip_i = 0.5 * float(np.sum(mu[i] ** 2))
-            t_nu = float(np.trace(nu[i]))
-            quad_i = 0.5 * float(np.sum(nu[i] ** 2)) - (1.0 / 6.0) * t_nu**2
-            dipole_energy += dip_i
-            quad_energy += quad_i
-            site_energies[i] += dip_i + quad_i
+        dipole_energy = 0.5 * float(np.sum(mu * mu))
+        nu_trace = np.trace(nu, axis1=1, axis2=2)
+        quad_energy = 0.5 * float(np.sum(nu * nu)) - (1.0 / 6.0) * float(np.sum(nu_trace * nu_trace))
+        site_energies += 0.5 * np.sum(mu * mu, axis=1)
+        site_energies += 0.5 * np.sum(nu * nu, axis=(1, 2)) - (1.0 / 6.0) * nu_trace**2
 
+        dphi = dphi_all[pair_idx, ti, tj]
+        ddens_ij = ddens_all[pair_idx, tj]
+        ddens_ji = ddens_all[pair_idx, ti]
+        scale_eam = dphi + d_emb[i_list] * ddens_ij + d_emb[j_list] * ddens_ji
+
+        pair_norm = dist[:, None]
+        unit = rvec / pair_norm
         forces = np.zeros((natoms, 3), dtype=float)
         stresses = np.zeros((natoms, 3, 3), dtype=float)
 
-        for k in range(dist.shape[0]):
-            i = int(i_list[k])
-            j = int(j_list[k])
-            r = float(dist[k])
-            if r <= 0.0:
-                continue
-            ti = int(species_index[i])
-            tj = int(species_index[j])
-            rhat = rvec[k] / r
+        mu_diff = mu[i_list] - mu[j_list]
+        mu_dot = np.einsum("ij,ij->i", mu_diff, rvec)
+        trace_sum = nu_trace[i_list] + nu_trace[j_list]
+        nu_sum = nu[i_list] + nu[j_list]
+        term1 = dip_all[pair_idx, ti, tj][:, None] * mu_diff
+        term2 = (ddip_all[pair_idx, ti, tj] * mu_dot / dist)[:, None] * rvec
+        term3 = 2.0 * quad_all[pair_idx, ti, tj][:, None] * np.einsum("kij,kj->ki", nu_sum, rvec)
+        term4_scalar = dquad_all[pair_idx, ti, tj] * np.einsum("kij,ki,kj->k", nu_sum, rvec, rvec) / dist
+        term4 = term4_scalar[:, None] * rvec
+        term5 = (
+            trace_sum * (dquad_all[pair_idx, ti, tj] * dist + 2.0 * quad_all[pair_idx, ti, tj]) / 3.0
+        )[:, None] * rvec
+        adp_force = term1 + term2 + term3 + term4 - term5
 
-            dphi = float(self._phi_spline(r, 1)[ti, tj])
-            ddens_ij = float(self._dens_spline(r, 1)[tj])
-            ddens_ji = float(self._dens_spline(r, 1)[ti])
-            scale_eam = dphi + d_emb[i] * ddens_ij + d_emb[j] * ddens_ji
+        pair_force = scale_eam[:, None] * unit + adp_force
+        np.add.at(forces, i_list, pair_force)
+        np.add.at(stresses, i_list, pair_force[:, :, None] * rvec[:, None, :])
 
-            adp_force = self._angular_forces(mu[i], mu[j], nu[i], nu[j], r, rvec[k], ti, tj)
-
-            fx = scale_eam * rhat[0] + adp_force[0]
-            fy = scale_eam * rhat[1] + adp_force[1]
-            fz = scale_eam * rhat[2] + adp_force[2]
-
-            forces[i, 0] += fx
-            forces[i, 1] += fy
-            forces[i, 2] += fz
-
-            stresses[i, 0, 0] += fx * rvec[k, 0]
-            stresses[i, 0, 1] += fx * rvec[k, 1]
-            stresses[i, 0, 2] += fx * rvec[k, 2]
-            stresses[i, 1, 0] += fy * rvec[k, 0]
-            stresses[i, 1, 1] += fy * rvec[k, 1]
-            stresses[i, 1, 2] += fy * rvec[k, 2]
-            stresses[i, 2, 0] += fz * rvec[k, 0]
-            stresses[i, 2, 1] += fz * rvec[k, 1]
-            stresses[i, 2, 2] += fz * rvec[k, 2]
-
-        total_energy = float(np.sum(site_energies))
+        total_energy = 0.5 * pair_energy_sum + float(np.sum(emb_i)) + dipole_energy + quad_energy
         results = {
             "energy": total_energy,
             "energies": site_energies,

@@ -38,9 +38,9 @@ from ase.calculators.eam import EAM as ASEEAM
 
 from forgeff.io import read_potential
 from forgeff.potentials.eam.numpy.adp_engine import NumpyADPEngine
-from forgeff.potentials.eam.numpy.engine import NumpyEAMEngine
+from forgeff.potentials.eam.numpy.eam_engine import NumpyEAMEngine
 from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
-from forgeff.potentials.eam.numba.engine import NumbaEAMEngine
+from forgeff.potentials.eam.numba.eam_engine import NumbaEAMEngine
 
 
 ROOT = Path(__file__).resolve().parents[1]
