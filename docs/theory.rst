@@ -317,13 +317,15 @@ This is the key idea behind the ForgeFF Tersoff data layout:
 
 - each ordered species triple :math:`(i, j, k)` gets one parameter block
 - the TOML schema stores that as ``[triplet.*]``
-- the runtime engine is the native ForgeFF Numba calculator
+- the runtime engines are the native ForgeFF NumPy and Numba calculators
 
 In practice this means Tersoff is handled as a multicomponent triple-table
 model with explicit species ordering, just like the rest of ForgeFF’s
 TOML-driven families. If the species list contains :math:`N` elements, the
 template and parser cover all :math:`N^3` ordered triplets, and each ordered
-triple has its own 14-parameter row.
+triple has its own 14-parameter row. The NumPy path keeps the same standard
+Tersoff equations in a direct reference implementation, while the Numba path
+uses the same data layout with compiled inner loops.
 
 Extrapolation grading
 ---------------------

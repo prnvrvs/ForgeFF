@@ -42,12 +42,13 @@ Supported combinations
   - ``numba``
 - Tersoff:
 
+  - ``numpy``
   - ``numba``
 
 If you need a LAMMPS output file, see :doc:`cli/export` for tabulated EAM
 and ADP potentials. Analytical pair potentials and Stillinger-Weber are
 runtime engines only. Tersoff can be loaded from TOML or the Python API and
-still executes through the Numba engine.
+executes through the ForgeFF NumPy or ForgeFF Numba engine.
 
 Usage examples
 --------------
@@ -290,6 +291,115 @@ Output:
     energy = -26.876415872339756
     force norm = 0.23637488863846728
     stress norm = 9.85271785204985e-05
+
+Tersoff
+^^^^^^^
+
+ForgeFF also ships a native Tersoff backend in both NumPy and Numba form.
+The NumPy path is a direct reference implementation, and the Numba path is
+the compiled accelerator.
+
+.. raw:: html
+
+   <span class="ff-engine-label ff-engine-label--forgeff-numpy">ForgeFF NumPy</span>
+
+.. code-block:: python
+
+    import numpy as np
+    from ase import Atoms
+    from forgeff.calculator import make_calculator
+    from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
+
+    parameters = {
+        ("Si", "Si", "Si"): TersoffParameters(
+            m=1.0,
+            gamma=1.0,
+            lambda3=1.2,
+            c=1.0,
+            d=0.5,
+            h=-0.3,
+            n=1.0,
+            beta=1.0,
+            lambda2=1.5,
+            B=0.8,
+            R=3.0,
+            D=0.2,
+            lambda1=2.6,
+            A=1.4,
+        )
+    }
+    pot = TersoffData.from_parameter_dict(parameters, species=["Si"])
+
+    atoms = Atoms(
+        "Si3",
+        positions=[
+            [0.0, 0.0, 0.0],
+            [1.9, 0.1, 0.2],
+            [0.3, 1.7, 0.4],
+        ],
+        cell=np.eye(3) * 12.0,
+        pbc=True,
+    )
+    atoms.calc = make_calculator(pot, engine="numpy")
+
+Output:
+
+.. code-block:: text
+
+    energy = -0.03453529197649337
+    force norm = 0.030637274075742755
+    stress norm = 1.8254190629373023e-05
+
+.. raw:: html
+
+   <span class="ff-engine-label ff-engine-label--forgeff-numba">ForgeFF Numba</span>
+
+.. code-block:: python
+
+    import numpy as np
+    from ase import Atoms
+    from forgeff.calculator import make_calculator
+    from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
+
+    parameters = {
+        ("Si", "Si", "Si"): TersoffParameters(
+            m=1.0,
+            gamma=1.0,
+            lambda3=1.2,
+            c=1.0,
+            d=0.5,
+            h=-0.3,
+            n=1.0,
+            beta=1.0,
+            lambda2=1.5,
+            B=0.8,
+            R=3.0,
+            D=0.2,
+            lambda1=2.6,
+            A=1.4,
+        )
+    }
+    pot = TersoffData.from_parameter_dict(parameters, species=["Si"])
+
+    atoms = Atoms(
+        "Si3",
+        positions=[
+            [0.0, 0.0, 0.0],
+            [1.9, 0.1, 0.2],
+            [0.3, 1.7, 0.4],
+        ],
+        cell=np.eye(3) * 12.0,
+        pbc=True,
+    )
+    atoms.calc = make_calculator(pot, engine="numba")
+
+Output:
+
+.. code-block:: text
+
+    energy = -0.03453529197649337
+    force norm = 0.030637274075742755
+    stress norm = 1.8254190629373023e-05
 
 Stillinger-Weber
 ^^^^^^^^^^^^^^^^

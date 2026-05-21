@@ -2,11 +2,28 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from ase import Atoms
+from ase.build import bulk
 from ase.calculators.tersoff import Tersoff as ASETersoff
 
 from forgeff.potentials.tersoff.data import TersoffParameters
 from forgeff.potentials.tersoff.numba import NumbaTersoffCalculator
+
+
+def _distorted_si_cell():
+    rng = np.random.default_rng(20260521)
+    atoms = bulk("Si", "diamond", a=5.43, cubic=True) * (2, 2, 2)
+    cell = atoms.cell.array.copy()
+    cell += np.array(
+        [
+            [0.06, 0.02, -0.01],
+            [0.00, -0.04, 0.03],
+            [0.01, -0.02, 0.05],
+        ]
+    )
+    atoms.set_cell(cell, scale_atoms=True)
+    atoms.positions += rng.normal(scale=0.03, size=atoms.positions.shape)
+    atoms.wrap()
+    return atoms
 
 
 def test_numba_tersoff_matches_ase_reference() -> None:
@@ -29,16 +46,7 @@ def test_numba_tersoff_matches_ase_reference() -> None:
         )
     }
 
-    atoms = Atoms(
-        "Si3",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [1.9, 0.1, 0.2],
-            [0.3, 1.7, 0.4],
-        ],
-        cell=np.eye(3) * 12.0,
-        pbc=True,
-    )
+    atoms = _distorted_si_cell()
 
     ref = ASETersoff(parameters=parameters, skin=0.0)
     numba = NumbaTersoffCalculator(parameters=parameters, skin=0.0)
