@@ -70,6 +70,7 @@ sphinx_gallery_conf = {
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+html_js_files = ["custom.js"]
 html_logo = "_static/forgeff-icon.png"
 html_favicon = "_static/forgeff-icon.png"
 html_theme_options = {

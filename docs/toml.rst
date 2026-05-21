@@ -26,11 +26,11 @@ you a valid starting point for each family:
 
 .. code-block:: bash
 
-forgeff template analytical --species Al Cu --form morse
-forgeff template eam --species Fe Ni --form alloy
-forgeff template adp --species Al Cu
-forgeff template sw --species Si
-forgeff template tersoff --species Si C
+   forgeff template analytical --species Al Cu --form morse
+   forgeff template eam --species Fe Ni --form alloy
+   forgeff template adp --species Al Cu
+   forgeff template sw --species Si
+   forgeff template tersoff --species Si C
 
 Use ``--output`` when you want the template written to a file instead of
 printed to the terminal:
@@ -87,6 +87,29 @@ you want to update.
 Multispecies analytical pair terms use the same idea: set ``optimize = false``
 on a ``[pair.*]`` block to keep that pair fixed while training the remaining
 pair blocks.
+
+For example, a binary Morse fit can freeze the pretrained ``Al-Al`` block and
+keep the cross terms trainable:
+
+.. code-block:: toml
+
+    [potential]
+    family = "analytical"
+    form = "morse"
+    cutoff = 8.0
+
+    [species]
+    order = ["Al", "Cu"]
+
+    [pair.AlAl]
+    initial = [0.20, 1.50, 2.75]
+    optimize = false
+
+    [pair.AlCu]
+    initial = [0.18, 1.45, 2.80]
+
+    [pair.CuCu]
+    initial = [0.22, 1.60, 2.90]
 
 Field guide
 -----------
@@ -418,6 +441,63 @@ For EAM alloy, the analytical version looks like this:
     expression = "F0 * sqrt(rho)"
     parameter_names = ["F0"]
     initial = [0.18]
+
+Two-step EAM fitting is also supported. A common pattern is to fit the pair
+term first, then freeze that pair block and fit the density and embedding
+terms in a second pass:
+
+.. code-block:: toml
+
+    # Stage 1: fit pair terms, keep density/embedding fixed.
+    [potential]
+    family = "eam"
+    form = "alloy"
+
+    [species]
+    order = ["Al"]
+
+    [grids]
+    r = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+    rho = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+
+    [pair.AlAl]
+    values = [0.00, -0.05, -0.02, -0.01, -0.005, 0.00]
+
+    [density.Al]
+    values = [1.20, 0.80, 0.50, 0.30, 0.15, 0.05]
+    optimize = false
+
+    [embedding.Al]
+    values = [0.00, -0.20, -0.35, -0.45, -0.55, -0.65]
+    optimize = false
+
+.. code-block:: toml
+
+    # Stage 2: freeze the pair block and fit density/embedding.
+    [potential]
+    family = "eam"
+    form = "alloy"
+
+    [species]
+    order = ["Al"]
+
+    [grids]
+    r = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+    rho = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+
+    [pair.AlAl]
+    values = [0.00, -0.05, -0.02, -0.01, -0.005, 0.00]
+    optimize = false
+
+    [density.Al]
+    values = [1.20, 0.80, 0.50, 0.30, 0.15, 0.05]
+
+    [embedding.Al]
+    values = [0.00, -0.20, -0.35, -0.45, -0.55, -0.65]
+
+The same pattern works for multispecies alloy and Finnis-Sinclair fits: keep
+the pretrained ``pair.*`` blocks fixed and optimize only the new density or
+embedding blocks in the next stage.
 
 For EAM Finnis-Sinclair, the pair blocks stay the same, but the density table
 becomes fully species-pair dependent:
