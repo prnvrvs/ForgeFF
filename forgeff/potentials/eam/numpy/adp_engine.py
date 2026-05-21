@@ -111,6 +111,7 @@ class NumpyADPEngine:
         pair_energy_sum = 0.0
         mu = np.zeros((natoms, 3), dtype=float)
         nu = np.zeros((natoms, 3, 3), dtype=float)
+        site_energies = np.zeros(natoms, dtype=float)
 
         for k in range(dist.shape[0]):
             i = int(i_list[k])
@@ -121,7 +122,11 @@ class NumpyADPEngine:
             ti = int(species_index[i])
             tj = int(species_index[j])
 
-            pair_energy_sum += float(self._phi_spline(r)[ti, tj])
+            pair_energy = float(self._phi_spline(r)[ti, tj])
+            pair_energy_sum += pair_energy
+            if i < j:
+                site_energies[i] += 0.5 * pair_energy
+                site_energies[j] += 0.5 * pair_energy
             total_density[i] += float(self._dens_spline(r)[tj])
 
             u = float(self._dipole_spline(r)[ti, tj])
@@ -135,15 +140,20 @@ class NumpyADPEngine:
         embedding_energy = 0.0
         for i in range(natoms):
             ti = int(species_index[i])
+            emb_i = float(self._emb_spline(total_density[i])[ti])
             d_emb[i] = float(self._emb_spline(total_density[i], 1)[ti])
-            embedding_energy += float(self._emb_spline(total_density[i])[ti])
+            embedding_energy += emb_i
+            site_energies[i] += emb_i
 
         dipole_energy = 0.0
         quad_energy = 0.0
         for i in range(natoms):
-            dipole_energy += 0.5 * float(np.sum(mu[i] ** 2))
+            dip_i = 0.5 * float(np.sum(mu[i] ** 2))
             t_nu = float(np.trace(nu[i]))
-            quad_energy += 0.5 * float(np.sum(nu[i] ** 2)) - (1.0 / 6.0) * t_nu**2
+            quad_i = 0.5 * float(np.sum(nu[i] ** 2)) - (1.0 / 6.0) * t_nu**2
+            dipole_energy += dip_i
+            quad_energy += quad_i
+            site_energies[i] += dip_i + quad_i
 
         forces = np.zeros((natoms, 3), dtype=float)
         stresses = np.zeros((natoms, 3, 3), dtype=float)
@@ -183,10 +193,10 @@ class NumpyADPEngine:
             stresses[i, 2, 1] += fz * rvec[k, 1]
             stresses[i, 2, 2] += fz * rvec[k, 2]
 
-        total_energy = pair_energy + embedding_energy + dipole_energy + quad_energy
+        total_energy = float(np.sum(site_energies))
         results = {
             "energy": total_energy,
-            "energies": np.full(natoms, total_energy / natoms if natoms else 0.0, dtype=float),
+            "energies": site_energies,
             "forces": forces,
         }
         if atoms.cell.rank == 3:

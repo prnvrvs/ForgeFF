@@ -24,7 +24,24 @@ where:
   :math:`\alpha_i`
 - :math:`\rho_i` is the local electron density at atom :math:`i`
 
+In ASE terminology, a single-element EAM potential is defined by three
+functions: the embedding energy, the electron density, and the pair
+potential. A multi-element alloy contains the per-element functions plus the
+cross-pair interactions. The ADP extension adds dipole and quadrupole
+channels on top of that tabulated EAM backbone.
+
 The local density is typically written as:
+
+.. math::
+
+    \rho_i = \sum_{j \ne i} \rho_{\alpha_i \alpha_j}(r_{ij})
+
+Equivalently, the tabulated EAM family can be written as:
+
+.. math::
+
+    E_\text{tot} = \sum_i F_{\alpha_i}(\rho_i)
+        + \frac{1}{2} \sum_{i \ne j} \phi_{\alpha_i \alpha_j}(r_{ij})
 
 .. math::
 
@@ -35,6 +52,19 @@ In ForgeFF, the tabulated EAM data object stores these parts explicitly:
 - ``phi_values`` for pair functions
 - ``rho_values`` for density functions
 - ``emb_values`` for embedding functions
+
+The supported tabulated families mirror the ASE file formats:
+
+- ``alloy``: density depends on the neighbor species only
+- ``fs``: density depends on both the central and neighbor species
+- ``adp``: tabulated EAM plus dipole and quadrupole corrections
+
+ForgeFF keeps the fitted arrays in the same shape the calculator needs:
+
+- ``phi_values[species_i, species_j, r]``
+- ``rho_values[species_i, species_j, r]`` for FS, or a per-neighbor-species
+  layout for alloy
+- ``emb_values[species_i, rho]``
 
 Alloy EAM
 ---------
@@ -48,7 +78,15 @@ neighbor species only:
 
 This is the simplest and most common binary/alloy EAM setup. In the current
 TOML schema, this corresponds to using ``form = "alloy"`` and storing the
-density table per species.
+density table per species, while keeping the pair terms for each unique pair
+channel.
+
+For the alloy convention, the same total-energy formula is used, but the
+neighbor contribution depends only on the neighbor species:
+
+.. math::
+
+    \rho_i = \sum_{j \ne i} \rho_{\alpha_j}(r_{ij})
 
 Finnis-Sinclair EAM
 -------------------
@@ -61,7 +99,20 @@ both species:
     \rho_i = \sum_{j \ne i} \rho_{\alpha_i \alpha_j}(r_{ij})
 
 This is more general than alloy EAM and is useful when the density contribution
-depends on both the central and neighboring species.
+depends on both the central and neighboring species. ASE exposes this form as
+``form="fs"`` for tabulated potentials, and ForgeFF follows the same
+terminology.
+
+For the FS convention, the species-pair density table is used directly:
+
+.. math::
+
+    E_\text{tot} = \sum_i F_{\alpha_i}(\rho_i)
+        + \frac{1}{2} \sum_{i \ne j} \phi_{\alpha_i \alpha_j}(r_{ij})
+
+.. math::
+
+    \rho_i = \sum_{j \ne i} \rho_{\alpha_i \alpha_j}(r_{ij})
 
 In ForgeFF this is represented by:
 
@@ -77,6 +128,8 @@ The current data model mirrors this distinction:
   ``rho_values``, and ``emb_values``
 - ``form = "alloy"`` uses the simplified density interpretation
 - ``form = "fs"`` uses the full species-pair density interpretation
+- ``.eam`` files can be treated as alloy-style data when the file content is
+  alloy-compatible
 
 ADP basics
 ----------
@@ -143,6 +196,9 @@ Embedding functions in ForgeFF may use the built-in analytical registry or a
 user-defined expression. The common choice is ``sqrt``, but the schema does not
 restrict you to that one form if another analytical shape is more appropriate
 for :math:`F(\rho)`.
+
+For LAMMPS/ASE-compatible exports, ForgeFF writes the tabulated EAM/ADP state
+back out as ``.eam.alloy``, ``.fs``, or ``.adp`` files.
 
 Relationship between families
 -----------------------------

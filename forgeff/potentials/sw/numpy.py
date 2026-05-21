@@ -59,8 +59,10 @@ def _triplet_energy_and_forces(
 
     grad_j = dE_du * u_hat + dE_dc * dc_drij
     grad_k = dE_dv * v_hat + dE_dc * dc_drik
-    grad_i = -(grad_j + grad_k)
-    return float(energy), grad_i, grad_j, grad_k
+    force_j = -grad_j
+    force_k = -grad_k
+    force_i = -(force_j + force_k)
+    return float(energy), force_i, force_j, force_k
 
 
 class NumpySWEngine:

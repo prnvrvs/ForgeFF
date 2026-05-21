@@ -8,9 +8,9 @@ from ase.calculators.eam import EAM as ASEEAM
 
 from forgeff.io import read_potential
 from forgeff.potentials.eam.numpy.adp_engine import NumpyADPEngine
-from forgeff.potentials.eam.numpy.engine import NumpyEAMEngine
+from forgeff.potentials.eam.numpy.eam_engine import NumpyEAMEngine
 from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
-from forgeff.potentials.eam.numba.engine import NumbaEAMEngine
+from forgeff.potentials.eam.numba.eam_engine import NumbaEAMEngine
 
 
 def test_nist_al99_eam_matches_ase() -> None:
@@ -81,6 +81,11 @@ def _distorted_bcc_fe_ni_cr_co_cu() -> Atoms:
     return atoms
 
 
+def _assert_site_energies_sum_to_total(result: dict) -> None:
+    assert "energies" in result
+    np.testing.assert_allclose(np.sum(result["energies"]), result["energy"], rtol=1e-12, atol=1e-12)
+
+
 def test_nist_fe_h_eam_fs_matches_ase_numpy_and_numba() -> None:
     atoms = _distorted_bcc_fe_with_h()
     pot = "tests/data_path/nist/Fe_H_Kumar2023.eam.fs"
@@ -97,6 +102,8 @@ def test_nist_fe_h_eam_fs_matches_ase_numpy_and_numba() -> None:
     numpy_res = numpy_engine.calculate(numpy_atoms)
     numba_res = numba_engine.calculate(numba_atoms)
 
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
     np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-10, atol=1e-10)
@@ -122,6 +129,8 @@ def test_nist_fe_c_eam_alloy_matches_ase_numpy_and_numba() -> None:
     numpy_res = numpy_engine.calculate(numpy_atoms)
     numba_res = numba_engine.calculate(numba_atoms)
 
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
     np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-10, atol=1e-10)
@@ -147,6 +156,8 @@ def test_nist_fe_ni_cr_co_cu_hea_eam_alloy_matches_ase_numpy_and_numba() -> None
     numpy_res = numpy_engine.calculate(numpy_atoms)
     numba_res = numba_engine.calculate(numba_atoms)
 
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
     np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-10, atol=1e-10)
@@ -172,6 +183,8 @@ def test_nist_fe_cr_h_adp_matches_ase_numpy_and_numba() -> None:
     numpy_res = numpy_engine.calculate(numpy_atoms)
     numba_res = numba_engine.calculate(numba_atoms)
 
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
     np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-10, atol=1e-10)
     np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-10, atol=1e-10)

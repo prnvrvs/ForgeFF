@@ -6,9 +6,9 @@ from ase.build import bulk
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.eam.numpy.adp_engine import NumpyADPEngine
-from forgeff.potentials.eam.numpy.engine import NumpyEAMEngine
+from forgeff.potentials.eam.numpy.eam_engine import NumpyEAMEngine
 from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
-from forgeff.potentials.eam.numba.engine import NumbaEAMEngine
+from forgeff.potentials.eam.numba.eam_engine import NumbaEAMEngine
 
 
 def _make_eam_data() -> EAMData:

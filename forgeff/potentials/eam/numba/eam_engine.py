@@ -77,6 +77,7 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
                         drho, dr, rho_start, r_start):
     natoms = types.shape[0]
     total_density = np.zeros(natoms)
+    site_energies = np.zeros(natoms)
     pair_energy_sum = 0.0
 
     for k in range(dist.shape[0]):
@@ -87,7 +88,11 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
             continue
         ti = types[i]
         tj = types[j]
-        pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy = _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy_sum += pair_energy
+        if i < j:
+            site_energies[i] += 0.5 * pair_energy
+            site_energies[j] += 0.5 * pair_energy
         total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
 
     pair_energy = 0.5 * pair_energy_sum
@@ -95,8 +100,10 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
     d_emb = np.zeros(natoms)
     for i in range(natoms):
         ti = types[i]
+        emb_i = _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
         d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        embedding_energy += _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+        embedding_energy += emb_i
+        site_energies[i] += emb_i
 
     forces = np.zeros((natoms, 3))
     stresses = np.zeros((natoms, 3, 3))
@@ -129,7 +136,7 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
         stresses[i, 2, 1] += fz * rvec[k, 1]
         stresses[i, 2, 2] += fz * rvec[k, 2]
 
-    return pair_energy, embedding_energy, total_density, forces, stresses
+    return pair_energy, embedding_energy, total_density, site_energies, forces, stresses
 
 
 @numba.njit(cache=True)
@@ -138,6 +145,7 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
                      drho, dr, rho_start, r_start):
     natoms = types.shape[0]
     total_density = np.zeros(natoms)
+    site_energies = np.zeros(natoms)
     pair_energy_sum = 0.0
 
     for k in range(dist.shape[0]):
@@ -148,7 +156,11 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
             continue
         ti = types[i]
         tj = types[j]
-        pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy = _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy_sum += pair_energy
+        if i < j:
+            site_energies[i] += 0.5 * pair_energy
+            site_energies[j] += 0.5 * pair_energy
         total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, tj, ti)
 
     pair_energy = 0.5 * pair_energy_sum
@@ -156,8 +168,10 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
     d_emb = np.zeros(natoms)
     for i in range(natoms):
         ti = types[i]
+        emb_i = _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
         d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        embedding_energy += _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+        embedding_energy += emb_i
+        site_energies[i] += emb_i
 
     forces = np.zeros((natoms, 3))
     stresses = np.zeros((natoms, 3, 3))
@@ -190,7 +204,7 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
         stresses[i, 2, 1] += fz * rvec[k, 1]
         stresses[i, 2, 2] += fz * rvec[k, 2]
 
-    return pair_energy, embedding_energy, total_density, forces, stresses
+    return pair_energy, embedding_energy, total_density, site_energies, forces, stresses
 
 
 class NumbaEAMEngine:
@@ -301,25 +315,25 @@ class NumbaEAMEngine:
         rvec = atoms.positions[j_list] + shifts @ atoms.cell.array - atoms.positions[i_list]
 
         if self.form == "fs":
-            pair_energy, embedding_energy, total_density, forces, stresses = _calculate_eam_fs(
+            pair_energy, embedding_energy, total_density, site_energies, forces, stresses = _calculate_eam_fs(
                 types, i_list.astype(np.int64), j_list.astype(np.int64),
                 dist.astype(np.float64), rvec.astype(np.float64),
                 self._emb_coeffs, self._dens_coeffs, self._phi_coeffs,
                 float(self.drho), float(self.dr), float(self.rho[0]), float(self.r[0]),
             )
         else:
-            pair_energy, embedding_energy, total_density, forces, stresses = _calculate_eam_alloy(
+            pair_energy, embedding_energy, total_density, site_energies, forces, stresses = _calculate_eam_alloy(
                 types, i_list.astype(np.int64), j_list.astype(np.int64),
                 dist.astype(np.float64), rvec.astype(np.float64),
                 self._emb_coeffs, self._dens_coeffs, self._phi_coeffs,
                 float(self.drho), float(self.dr), float(self.rho[0]), float(self.r[0]),
             )
         
-        energy = pair_energy + embedding_energy
+        energy = float(np.sum(site_energies))
         
         results = {
             "energy": energy,
-            "energies": np.array([energy / len(atoms)] * len(atoms)), # Approximation
+            "energies": site_energies,
             "forces": forces,
         }
         

@@ -65,7 +65,9 @@ def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, c
 
     grad_j = np.empty(3)
     grad_k = np.empty(3)
-    grad_i = np.empty(3)
+    force_j = np.empty(3)
+    force_k = np.empty(3)
+    force_i = np.empty(3)
 
     grad_j[0] = dE_du * u_hat[0] + dE_dc * dc_drij0
     grad_j[1] = dE_du * u_hat[1] + dE_dc * dc_drij1
@@ -75,10 +77,16 @@ def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, c
     grad_k[1] = dE_dv * v_hat[1] + dE_dc * dc_drik1
     grad_k[2] = dE_dv * v_hat[2] + dE_dc * dc_drik2
 
-    grad_i[0] = -(grad_j[0] + grad_k[0])
-    grad_i[1] = -(grad_j[1] + grad_k[1])
-    grad_i[2] = -(grad_j[2] + grad_k[2])
-    return energy, grad_i, grad_j, grad_k
+    force_j[0] = -grad_j[0]
+    force_j[1] = -grad_j[1]
+    force_j[2] = -grad_j[2]
+    force_k[0] = -grad_k[0]
+    force_k[1] = -grad_k[1]
+    force_k[2] = -grad_k[2]
+    force_i[0] = -(force_j[0] + force_k[0])
+    force_i[1] = -(force_j[1] + force_k[1])
+    force_i[2] = -(force_j[2] + force_k[2])
+    return energy, force_i, force_j, force_k
 
 
 @numba.njit(cache=True)

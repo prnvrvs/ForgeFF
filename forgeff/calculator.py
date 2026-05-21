@@ -15,9 +15,9 @@ from forgeff.potentials.sw.data import SWData
 from forgeff.potentials.tersoff.data import TersoffData
 
 _EAM_ENGINES = {
-    "ase": "forgeff.potentials.eam.numpy.engine.NumpyEAMEngine",
-    "numpy": "forgeff.potentials.eam.numpy.engine.NumpyEAMEngine",
-    "numba": "forgeff.potentials.eam.numba.engine.NumbaEAMEngine",
+    "ase": "forgeff.potentials.eam.numpy.eam_engine.NumpyEAMEngine",
+    "numpy": "forgeff.potentials.eam.numpy.eam_engine.NumpyEAMEngine",
+    "numba": "forgeff.potentials.eam.numba.eam_engine.NumbaEAMEngine",
 }
 
 _ADP_ENGINES = {

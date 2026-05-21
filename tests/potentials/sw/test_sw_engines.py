@@ -92,6 +92,14 @@ def _reference_matscipy_calc():
     )
 
 
+def _distorted_si_sw_structure() -> Atoms:
+    atoms = bulk("Si", "diamond", a=5.43) * (2, 2, 2)
+    rng = np.random.default_rng(2026)
+    atoms.positions += rng.normal(scale=0.02, size=atoms.positions.shape)
+    atoms.positions %= atoms.cell.lengths()
+    return atoms
+
+
 def test_numpy_sw_matches_matscipy_reference() -> None:
     atoms = bulk("Si", "diamond", a=5.43) * (2, 2, 2)
     ref = _reference_matscipy_calc()
@@ -104,6 +112,27 @@ def test_numpy_sw_matches_matscipy_reference() -> None:
     np.testing.assert_allclose(res["energy"], atoms_ref.get_potential_energy(), rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(res["forces"], atoms_ref.get_forces(), rtol=1e-11, atol=1e-11)
     np.testing.assert_allclose(res["stress"], atoms_ref.get_stress(), rtol=1e-10, atol=1e-10)
+
+
+def test_numpy_sw_matches_matscipy_reference_on_distorted_structure() -> None:
+    atoms = _distorted_si_sw_structure()
+    ref = _reference_matscipy_calc()
+    atoms_ref = atoms.copy()
+    atoms_ref.calc = ref
+
+    numpy_engine = NumpySWEngine(_make_sw_data())
+    numba_engine = NumbaSWEngine(_make_sw_data())
+
+    numpy_res = numpy_engine.calculate(atoms.copy())
+    numba_res = numba_engine.calculate(atoms.copy())
+
+    np.testing.assert_allclose(numpy_res["energy"], atoms_ref.get_potential_energy(), rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(numpy_res["forces"], atoms_ref.get_forces(), rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(numpy_res["stress"], atoms_ref.get_stress(), rtol=1e-10, atol=1e-10)
+
+    np.testing.assert_allclose(numba_res["energy"], atoms_ref.get_potential_energy(), rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(numba_res["forces"], atoms_ref.get_forces(), rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(numba_res["stress"], atoms_ref.get_stress(), rtol=1e-10, atol=1e-10)
 
 
 def test_numba_sw_matches_numpy_sw() -> None:

@@ -9,7 +9,7 @@ from ase.stress import full_3x3_to_voigt_6_stress
 from ase.neighborlist import neighbor_list
 from ase import Atoms
 from forgeff.potentials.eam.adp_data import ADPData
-from .engine import _spline_eval_1d, _spline_eval_2d, _spline_deriv_1d, _spline_deriv_2d
+from .eam_engine import _spline_eval_1d, _spline_eval_2d, _spline_deriv_1d, _spline_deriv_2d
 
 @numba.njit(cache=True)
 def _calculate_adp(types, i_list, j_list, dist, rvec,
@@ -19,6 +19,7 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
     natoms = types.shape[0]
     total_density = np.zeros(natoms)
     pair_energy_sum = 0.0
+    site_energies = np.zeros(natoms)
     
     # Dipole and Quadrupole accumulators
     mu = np.zeros((natoms, 3))
@@ -34,7 +35,11 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
         tj = types[j]
         
         # EAM Pair
-        pair_energy_sum += _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy = _spline_eval_2d(phi_coeffs, r, r_start, dr, ti, tj)
+        pair_energy_sum += pair_energy
+        if i < j:
+            site_energies[i] += 0.5 * pair_energy
+            site_energies[j] += 0.5 * pair_energy
         # EAM Density
         total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
         
@@ -55,23 +60,30 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
     d_emb = np.zeros(natoms)
     for i in range(natoms):
         ti = types[i]
+        emb_i = _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
         d_emb[i] = _spline_deriv_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
-        embedding_energy += _spline_eval_1d(emb_coeffs, total_density[i], rho_start, drho, ti)
+        embedding_energy += emb_i
+        site_energies[i] += emb_i
 
     # ADP Energy
     dipole_energy = 0.0
     quad_energy = 0.0
     for i in range(natoms):
         # Dipole: 0.5 * sum(mu_alpha^2)
+        dip_i = 0.0
         for alpha in range(3):
-            dipole_energy += 0.5 * mu[i, alpha]**2
+            dip_i += 0.5 * mu[i, alpha]**2
         
         # Quadrupole: 0.5 * sum(nu_alpha_beta^2) - 1/6 * (sum nu_alpha_alpha)^2
         t_nu = nu[i, 0, 0] + nu[i, 1, 1] + nu[i, 2, 2]
+        quad_i = 0.0
         for alpha in range(3):
             for beta in range(3):
-                quad_energy += 0.5 * nu[i, alpha, beta]**2
-        quad_energy -= (1.0/6.0) * t_nu**2
+                quad_i += 0.5 * nu[i, alpha, beta]**2
+        quad_i -= (1.0/6.0) * t_nu**2
+        dipole_energy += dip_i
+        quad_energy += quad_i
+        site_energies[i] += dip_i + quad_i
 
     forces = np.zeros((natoms, 3))
     stresses = np.zeros((natoms, 3, 3))
@@ -158,8 +170,10 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
         stresses[i, 2, 1] += fz * rvec[k, 1]
         stresses[i, 2, 2] += fz * rvec[k, 2]
 
-    total_energy = pair_energy + embedding_energy + dipole_energy + quad_energy
-    return total_energy, forces, stresses
+    total_energy = 0.0
+    for i in range(natoms):
+        total_energy += site_energies[i]
+    return total_energy, site_energies, forces, stresses
 
 
 class NumbaADPEngine:
@@ -210,7 +224,7 @@ class NumbaADPEngine:
         i_list, j_list, shifts, dist = neighbor_list('ijSd', atoms, cutoff)
         rvec = atoms.positions[j_list] + shifts @ atoms.cell.array - atoms.positions[i_list]
 
-        energy, forces, stresses = _calculate_adp(
+        energy, site_energies, forces, stresses = _calculate_adp(
             types, i_list.astype(np.int64), j_list.astype(np.int64),
             dist.astype(np.float64), rvec.astype(np.float64),
             self._emb_coeffs, self._dens_coeffs, self._phi_coeffs,
@@ -220,7 +234,7 @@ class NumbaADPEngine:
         
         results = {
             "energy": energy,
-            "energies": np.array([energy / len(atoms)] * len(atoms)),
+            "energies": site_energies,
             "forces": forces,
         }
         
