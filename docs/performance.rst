@@ -5,7 +5,8 @@ ForgeFF includes evaluation paths for several semi-empirical models:
 
 - the matscipy-reference Stillinger-Weber path
 - the ASE reference path for EAM and ADP
-- the ForgeFF NumPy and ForgeFF Numba paths for SW, EAM, and ADP
+- the ASE reference path for Tersoff
+- the ForgeFF NumPy and ForgeFF Numba paths for SW, EAM, ADP, and Tersoff
 
 This page shows how they behave as the system size grows for reference
 benchmark systems. The benchmark uses the reference files already shipped with
@@ -16,6 +17,8 @@ the repo:
 - :download:`AlCu.adp <../tests/data_path/nist/AlCu.adp>`
 - matscipy Stillinger-Weber parameters are embedded directly in the benchmark
   script for a pure Si diamond test case
+- the Tersoff benchmark uses a standard Si triplet parameter set embedded in
+  the benchmark script
 
 How the benchmark is measured
 -----------------------------
@@ -26,7 +29,7 @@ configuration.
 
 The EAM alloy benchmark uses conventional cubic Al cells. The EAM FS benchmark
 uses a distorted BCC Fe-H cell. The ADP benchmark uses conventional cubic Al
-cells. The SW benchmark uses a diamond Si supercell.
+cells. The SW and Tersoff benchmarks use diamond Si supercells.
 
 The important point is not the exact millisecond count. The point is the
 trend:
@@ -102,6 +105,20 @@ ADP has more angular work than EAM, so both the NumPy and Numba ForgeFF
 engines gain more from avoiding Python-level overhead. That makes the speed
 gap more visible as the number of atoms increases.
 
+Tersoff scaling
+---------------
+
+.. figure:: _static/performance/tersoff_runtime.png
+   :align: center
+   :alt: Tersoff runtime comparison on distorted Si
+
+   ASE vs ForgeFF NumPy and ForgeFF Numba evaluation time for a standard Si
+   Tersoff parameter set.
+
+The Tersoff benchmark uses distorted diamond Si supercells from ``1x1x1`` to
+``10x10x10``. The ForgeFF NumPy backend is a direct reference implementation,
+and the Numba backend uses the same neighbor layout with compiled inner loops.
+
 How to regenerate the plots
 ---------------------------
 
@@ -111,6 +128,7 @@ Run the benchmark script from the repo root:
 
    python benchmarks/speed_sw.py
    python benchmarks/speed_eam_adp.py
+   python benchmarks/speed_tersoff.py
 
 The scripts write the plots and the raw timing data to
 ``docs/_static/performance/``.
