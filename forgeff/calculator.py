@@ -27,6 +27,7 @@ _ADP_ENGINES = {
 }
 
 _TERSOFF_ENGINES = {
+    "numpy": "forgeff.potentials.tersoff.numpy.NumpyTersoffCalculator",
     "numba": "forgeff.potentials.tersoff.numba.NumbaTersoffCalculator",
 }
 

@@ -1,11 +1,10 @@
-"""Numba-backed Tersoff calculator."""
+"""NumPy-backed Tersoff calculator."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-import numba
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.neighborlist import neighbor_list
@@ -20,7 +19,6 @@ _MAX_EXP_ARG = 69.0776e0
 _MIN_EXP_ARG = -69.0776e0
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_fc(r: float, R: float, D: float) -> float:
     if r > R + D:
         return 0.0
@@ -29,14 +27,12 @@ def _calc_fc(r: float, R: float, D: float) -> float:
     return 0.5 * (1.0 - np.sin(np.pi * (r - R) / (2.0 * D)))
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_fc_d(r: float, R: float, D: float) -> float:
     if r > R + D or r < R - D:
         return 0.0
     return -0.25 * np.pi / D * np.cos(np.pi * (r - R) / (2.0 * D))
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_gijk(costheta: float, gamma: float, c: float, d: float, h: float) -> float:
     c2 = c * c
     d2 = d * d
@@ -44,7 +40,6 @@ def _calc_gijk(costheta: float, gamma: float, c: float, d: float, h: float) -> f
     return gamma * (1.0 + c2 / d2 - c2 / (d2 + hcth * hcth))
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_gijk_d(costheta: float, gamma: float, c: float, d: float, h: float) -> float:
     c2 = c * c
     d2 = d * d
@@ -52,7 +47,6 @@ def _calc_gijk_d(costheta: float, gamma: float, c: float, d: float, h: float) ->
     return (-2.0 * gamma * c2 * hcth) / (d2 + hcth * hcth) ** 2
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_costheta_d(rij: np.ndarray, rik: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     abs_rij = np.sqrt(rij[0] * rij[0] + rij[1] * rij[1] + rij[2] * rij[2])
     abs_rik = np.sqrt(rik[0] * rik[0] + rik[1] * rik[1] + rik[2] * rik[2])
@@ -63,7 +57,6 @@ def _calc_costheta_d(rij: np.ndarray, rik: np.ndarray) -> tuple[np.ndarray, np.n
     return dri, drj, drk
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_zeta_d(
     rij: np.ndarray,
     rik: np.ndarray,
@@ -115,19 +108,42 @@ def _calc_zeta_d(
     return dri, drj, drk
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_bij(zeta: float, beta: float, n: float) -> float:
     tmp = beta * zeta
     return (1.0 + tmp**n) ** (-1.0 / (2.0 * n))
 
 
-@numba.njit(cache=False, inline="always")
 def _calc_bij_d(zeta: float, beta: float, n: float) -> float:
     tmp = beta * zeta
     return -0.5 * (1.0 + tmp**n) ** (-1.0 - (1.0 / (2.0 * n))) * (beta * tmp ** (n - 1.0))
 
 
-@numba.njit(cache=False)
+def _build_neighbor_arrays(
+    atoms,
+    cutoff: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    natoms = len(atoms)
+    i_pairs, j_pairs, distances, vectors = neighbor_list("ijdD", atoms, cutoff)
+    if i_pairs.size == 0:
+        return (
+            np.zeros(natoms + 1, dtype=np.int64),
+            np.empty(0, dtype=np.int64),
+            np.empty((0, 3), dtype=np.float64),
+            np.empty(0, dtype=np.float64),
+        )
+
+    order = np.argsort(i_pairs, kind="mergesort")
+    i_sorted = np.asarray(i_pairs[order], dtype=np.int64)
+    j_sorted = np.asarray(j_pairs[order], dtype=np.int64)
+    vectors_sorted = np.asarray(vectors[order], dtype=np.float64)
+    distances_sorted = np.asarray(distances[order], dtype=np.float64)
+
+    counts = np.bincount(i_sorted, minlength=natoms)
+    neighbor_starts = np.zeros(natoms + 1, dtype=np.int64)
+    neighbor_starts[1:] = np.cumsum(counts, dtype=np.int64)
+    return neighbor_starts, j_sorted, vectors_sorted, distances_sorted
+
+
 def _calculate_tersoff(
     atom_species: np.ndarray,
     species_cutoffs: np.ndarray,
@@ -144,10 +160,10 @@ def _calculate_tersoff(
 
     for i in range(natoms):
         type_i = atom_species[i]
-        start = neighbor_starts[i]
-        end = neighbor_starts[i + 1]
+        start = int(neighbor_starts[i])
+        end = int(neighbor_starts[i + 1])
         for p in range(start, end):
-            j = neighbor_indices[p]
+            j = int(neighbor_indices[p])
             type_j = atom_species[j]
             params = param_table[type_i, type_j, type_j]
             rij = vectors[p]
@@ -165,7 +181,7 @@ def _calculate_tersoff(
             for q in range(start, end):
                 if q == p:
                     continue
-                k = neighbor_indices[q]
+                k = int(neighbor_indices[q])
                 type_k = atom_species[k]
                 trip = param_table[type_i, type_j, type_k]
                 abs_rik = distances[q]
@@ -214,7 +230,7 @@ def _calculate_tersoff(
             for q in range(start, end):
                 if q == p:
                     continue
-                k = neighbor_indices[q]
+                k = int(neighbor_indices[q])
                 type_k = atom_species[k]
                 trip = param_table[type_i, type_j, type_k]
                 abs_rik = distances[q]
@@ -235,8 +251,12 @@ def _calculate_tersoff(
     return energies.sum(), energies, forces, virial
 
 
-class NumbaTersoffCalculator(Calculator):
-    """JIT-accelerated Tersoff potential matching ASE's reference behavior."""
+class NumpyTersoffCalculator(Calculator):
+    """NumPy reference Tersoff calculator.
+
+    This backend keeps the standard Tersoff equations in plain Python/NumPy so
+    it can be benchmarked and validated independently from the Numba backend.
+    """
 
     implemented_properties = [
         "free_energy",
@@ -266,7 +286,7 @@ class NumbaTersoffCalculator(Calculator):
         potential_file: str | Path,
         skin: float = 0.3,
         **kwargs: Any,
-    ) -> "NumbaTersoffCalculator":
+    ) -> "NumpyTersoffCalculator":
         parameters = cls.read_lammps_format(potential_file)
         return cls(parameters=parameters, skin=skin, **kwargs)
 
@@ -318,26 +338,29 @@ class NumbaTersoffCalculator(Calculator):
             self.data = TersoffData.from_parameter_dict(parameters, cutoff_skin=self.cutoff_skin)
         self._init_cache()
 
+    def _update_nl(self, atoms) -> None:
+        cutoffs = np.array([self._species_cutoffs[self._species_index[str(sym)]] for sym in atoms.symbols], dtype=float)
+        self.nl = NeighborList(
+            cutoffs,
+            skin=self.cutoff_skin,
+            self_interaction=False,
+            bothways=True,
+        )
+        self.nl.update(atoms)
+
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):  # noqa: B006
         Calculator.calculate(self, atoms, properties, system_changes)
         natoms = len(self.atoms)
         atom_species = np.array([self._species_index[str(symbol)] for symbol in self.atoms.symbols], dtype=np.int64)
-        i_pairs, j_pairs, distances, vectors = neighbor_list("ijdD", self.atoms, self._neighbor_cutoff)
-        if i_pairs.size:
-            order = np.argsort(i_pairs, kind="mergesort")
-            i_sorted = np.asarray(i_pairs[order], dtype=np.int64)
-            neighbor_indices_arr = np.asarray(j_pairs[order], dtype=np.int64)
-            vectors = np.asarray(vectors[order], dtype=np.float64)
-            distances = np.asarray(distances[order], dtype=np.float64)
-            counts = np.bincount(i_sorted, minlength=natoms)
-            neighbor_starts = np.zeros(natoms + 1, dtype=np.int64)
-            neighbor_starts[1:] = np.cumsum(counts, dtype=np.int64)
+        neighbor_starts, neighbor_indices, vectors, distances = _build_neighbor_arrays(self.atoms, self._neighbor_cutoff)
+
+        if neighbor_indices.size:
             energy, local, forces, virial = _calculate_tersoff(
                 atom_species,
                 self._species_cutoffs,
                 np.asarray(self.data.parameter_table, dtype=np.float64),
                 neighbor_starts,
-                neighbor_indices_arr,
+                neighbor_indices,
                 vectors,
                 distances,
                 natoms,
