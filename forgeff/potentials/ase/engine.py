@@ -110,9 +110,14 @@ class GenericASEEngine:
         finally:
             atoms.calc = old_calc
 
+        if len(atoms) == 0:
+            site_energies = np.zeros(0, dtype=float)
+        else:
+            site_energies = np.full(len(atoms), energy / len(atoms), dtype=float)
+
         return {
             "energy": energy,
-            "energies": np.array([energy / len(atoms)] * len(atoms)),
+            "energies": site_energies,
             "forces": forces,
             "stress": stress
         }

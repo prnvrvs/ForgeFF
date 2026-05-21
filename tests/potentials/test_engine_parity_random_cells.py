@@ -100,6 +100,36 @@ def test_eam_family_numpy_numba_and_ase_match_random_cells(
     _assert_results_match(numba_res, ase_energy, ase_forces, ase_stress, tol=1e-10)
 
 
+@pytest.mark.parametrize(
+    ("label", "potential", "form", "seed"),
+    [
+        ("alloy_small_periodic", ROOT / "tests" / "data_path" / "nist" / "Al99.eam.alloy", "alloy", 2101),
+        ("adp_small_periodic", ROOT / "tests" / "data_path" / "nist" / "AlCu.adp", "adp", 2102),
+    ],
+)
+def test_eam_family_numpy_numba_and_ase_match_small_random_periodic_cells(
+    label: str,
+    potential: Path,
+    form: str,
+    seed: int,
+) -> None:
+    del label
+    atoms = Atoms("Al", positions=[[0.0, 0.0, 0.0]], cell=np.diag([3.3, 3.5, 3.7]), pbc=True)
+    atoms = _strain_and_perturb(atoms, seed, scale=0.02)
+    pot = read_potential(str(potential), form=form)
+    ase_energy, ase_forces, ase_stress = _ase_eam_results(ASEEAM(potential=str(potential), form=form), atoms)
+
+    if form == "adp":
+        numpy_res = NumpyADPEngine(pot).calculate(atoms.copy())
+        numba_res = NumbaADPEngine(pot).calculate(atoms.copy())
+    else:
+        numpy_res = NumpyEAMEngine(pot).calculate(atoms.copy())
+        numba_res = NumbaEAMEngine(pot).calculate(atoms.copy())
+
+    _assert_results_match(numpy_res, ase_energy, ase_forces, ase_stress, tol=1e-10)
+    _assert_results_match(numba_res, ase_energy, ase_forces, ase_stress, tol=1e-10)
+
+
 @pytest.mark.parametrize("form", ["lj", "morse"])
 def test_pair_numpy_numba_and_ase_match_random_cells(form: str) -> None:
     atoms = _strain_and_perturb(
@@ -252,6 +282,76 @@ def test_sw_numpy_numba_and_matscipy_match_random_cell() -> None:
         bulk("Si", "diamond", a=5.43, cubic=True) * (2, 2, 2),
         1400,
         scale=0.02,
+    )
+    params = {
+        "el": "Si",
+        "epsilon": 2.1683,
+        "sigma": 2.0951,
+        "costheta0": 1.0 / 3.0,
+        "A": 7.049556277,
+        "B": 0.6022245584,
+        "p": 4.0,
+        "a": 1.8,
+        "lambda1": 21.0,
+        "gamma": 1.2,
+    }
+    sw = StillingerWeber(params)
+    matscipy_calc = Manybody(
+        sw["atom_type"],
+        sw["pair_type"],
+        sw["F"],
+        sw["G"],
+        sw["d1F"],
+        sw["d2F"],
+        sw["d11F"],
+        sw["d22F"],
+        sw["d12F"],
+        sw["d1G"],
+        sw["d11G"],
+        sw["d2G"],
+        sw["d22G"],
+        sw["d12G"],
+        sw["cutoff"],
+    )
+
+    atoms_ref = atoms.copy()
+    atoms_ref.calc = matscipy_calc
+    numpy_res = NumpySWEngine(_sw_data()).calculate(atoms.copy())
+    numba_res = NumbaSWEngine(_sw_data()).calculate(atoms.copy())
+
+    _assert_results_match(
+        numpy_res,
+        atoms_ref.get_potential_energy(),
+        atoms_ref.get_forces(),
+        atoms_ref.get_stress(),
+        tol=1e-10,
+    )
+    _assert_results_match(
+        numba_res,
+        atoms_ref.get_potential_energy(),
+        atoms_ref.get_forces(),
+        atoms_ref.get_stress(),
+        tol=1e-10,
+    )
+
+
+def test_sw_numpy_numba_and_matscipy_match_small_periodic_cell() -> None:
+    pytest.importorskip("matscipy")
+    from matscipy.calculators.manybody import StillingerWeber
+    from matscipy.calculators.manybody.calculator import Manybody
+
+    atoms = _strain_and_perturb(
+        Atoms(
+            "Si2",
+            positions=[
+                [0.0, 0.0, 0.0],
+                [1.05, 0.85, 1.20],
+            ],
+            cell=np.diag([3.0, 3.0, 3.0]),
+            pbc=True,
+        ),
+        1401,
+        scale=0.015,
     )
     params = {
         "el": "Si",

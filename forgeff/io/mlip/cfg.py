@@ -55,7 +55,7 @@ def read_cfg(
 
 
 def _convert_species(species: list | None) -> list[int] | None:
-    if isinstance(species, list) and isinstance(species[0], str):
+    if isinstance(species, list) and species and isinstance(species[0], str):
         return [chemical_symbols.index(_) for _ in species]
     return species  # list[int] | None
 
@@ -165,15 +165,17 @@ def _set_magmoms(atoms: Atoms, atomdata: dict) -> None:
 
 
 def _parse_value(value: str) -> int | float | bool:
-    if value.isdigit():
-        return int(value)
-    if value.replace(".", "").replace("-", "").isdigit():
-        return float(value)
     if value.lower() == "true":
         return True
     if value.lower() == "false":
         return False
-    raise RuntimeError(value)
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError as exc:
+            raise RuntimeError(value) from exc
 
 
 @writer

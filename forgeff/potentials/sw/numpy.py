@@ -288,6 +288,19 @@ class NumpySWEngine:
             np.add.at(forces, pj, f_j)
             virial += np.einsum("pi,pj->ij", prc, f_j)
 
+        self_mask = i_p == j_p
+        if np.any(self_mask):
+            pi = np.asarray(i_p[self_mask], dtype=np.int64)
+            pr = np.asarray(r_p[self_mask], dtype=float)
+            prc = np.asarray(r_pc[self_mask], dtype=float)
+            ti = species_index[pi]
+            pair_params = sw.pair_parameters[ti, ti]
+            pair_energy, d_pair = _pair_energy_and_dedr_vectorized(pr, pair_params)
+            unit = prc / pr[:, None]
+            f_j = -d_pair[:, None] * unit
+            energy += 0.5 * float(np.sum(pair_energy))
+            virial += 0.5 * np.einsum("pi,pj->ij", prc, f_j)
+
         # Triplet term: center i with unordered neighbor pairs (j, k), j < k.
         if len(i_p) > 0:
             order = np.argsort(i_p, kind="mergesort")

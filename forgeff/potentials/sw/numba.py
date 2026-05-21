@@ -127,7 +127,7 @@ def _calculate_sw(
     for idx in range(n_neigh):
         i = int(i_p[idx])
         j = int(j_p[idx])
-        if i >= j:
+        if i > j:
             continue
         ti = int(species_index[i])
         tj = int(species_index[j])
@@ -145,22 +145,26 @@ def _calculate_sw(
         f_i0 = -f_j0
         f_i1 = -f_j1
         f_i2 = -f_j2
-        energy += pair_energy
+        if i == j:
+            energy += 0.5 * pair_energy
+        else:
+            energy += pair_energy
         forces[i, 0] += f_i0
         forces[i, 1] += f_i1
         forces[i, 2] += f_i2
         forces[j, 0] += f_j0
         forces[j, 1] += f_j1
         forces[j, 2] += f_j2
-        virial[0, 0] += r_pc[idx, 0] * f_j0
-        virial[0, 1] += r_pc[idx, 0] * f_j1
-        virial[0, 2] += r_pc[idx, 0] * f_j2
-        virial[1, 0] += r_pc[idx, 1] * f_j0
-        virial[1, 1] += r_pc[idx, 1] * f_j1
-        virial[1, 2] += r_pc[idx, 1] * f_j2
-        virial[2, 0] += r_pc[idx, 2] * f_j0
-        virial[2, 1] += r_pc[idx, 2] * f_j1
-        virial[2, 2] += r_pc[idx, 2] * f_j2
+        scale = 0.5 if i == j else 1.0
+        virial[0, 0] += scale * r_pc[idx, 0] * f_j0
+        virial[0, 1] += scale * r_pc[idx, 0] * f_j1
+        virial[0, 2] += scale * r_pc[idx, 0] * f_j2
+        virial[1, 0] += scale * r_pc[idx, 1] * f_j0
+        virial[1, 1] += scale * r_pc[idx, 1] * f_j1
+        virial[1, 2] += scale * r_pc[idx, 1] * f_j2
+        virial[2, 0] += scale * r_pc[idx, 2] * f_j0
+        virial[2, 1] += scale * r_pc[idx, 2] * f_j1
+        virial[2, 2] += scale * r_pc[idx, 2] * f_j2
 
     # Triplet term
     for i in range(natoms):

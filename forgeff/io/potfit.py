@@ -217,7 +217,7 @@ def write_force(
             atoms.calc.results["free_energy"] = 0.0
 
         forces = _get_singlepoint(atoms, "forces", shape=(len(atoms), 3))
-        energy = float(atoms.get_potential_energy()) / float(len(atoms))
+        energy = float(atoms.get_potential_energy()) / float(len(atoms)) if len(atoms) else 0.0
 
         try:
             stress = np.asarray(atoms.get_stress(), dtype=float)
