@@ -11,7 +11,7 @@ from ase import Atoms
 from forgeff.potentials.eam.adp_data import ADPData
 from .eam_engine import _spline_eval_1d, _spline_eval_2d, _spline_deriv_1d, _spline_deriv_2d
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_adp(types, i_list, j_list, dist, rvec,
                   emb_coeffs, dens_coeffs, phi_coeffs,
                   dipole_coeffs, quadrupole_coeffs,

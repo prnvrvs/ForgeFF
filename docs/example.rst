@@ -1,12 +1,12 @@
 Example
 =======
 
-There are two ways to train a potential in ForgeFF:
+Two routes cover the workflow:
 
-- use the Python walkthroughs to see the workflow step by step
-- use the TOML examples to run the command-line style training setup
+- Python walkthroughs for the step-by-step path
+- TOML examples for copyable training settings
 
-The buttons below open the two example paths.
+Use the buttons below to jump in.
 
 .. raw:: html
 
@@ -15,14 +15,14 @@ The buttons below open the two example paths.
          <span class="ff-example-button__icon">P</span>
          <span class="ff-example-button__text">
            <strong>Python walkthroughs</strong>
-           <span>See training, evaluation, grading, and calculator usage step by step.</span>
+           <span>Training, evaluation, grading, and calculator usage.</span>
          </span>
       </a>
       <a class="ff-example-button" href="examples/toml.html">
          <span class="ff-example-button__icon">T</span>
          <span class="ff-example-button__text">
            <strong>TOML examples</strong>
-           <span>Open the copyable training settings for pairwise, EAM, and ADP.</span>
+           <span>Copyable settings for pairwise, EAM, ADP, and more.</span>
          </span>
       </a>
    </div>

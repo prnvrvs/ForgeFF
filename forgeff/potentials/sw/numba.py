@@ -11,7 +11,7 @@ from ase.stress import full_3x3_to_voigt_6_stress
 from .data import SWData
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _pair_energy_and_dedr_numba(r, params):
     A = params[0]
     B = params[1]
@@ -29,7 +29,7 @@ def _pair_energy_and_dedr_numba(r, params):
     return pair_energy, d_pair
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, costheta0):
     gamma_ij = pair_ij[6]
     a2_ij = pair_ij[7]
@@ -89,7 +89,7 @@ def _triplet_energy_and_forces_numba(rij, rik, pair_ij, pair_ik, lambda_value, c
     return energy, force_i, force_j, force_k
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_sw(
     i_p,
     j_p,

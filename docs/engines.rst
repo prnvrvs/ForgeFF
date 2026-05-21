@@ -21,22 +21,27 @@ Supported combinations
 ----------------------
 
 - Analytical pair potentials:
+
   - ``ASE`` for built-in ASE-compatible forms
   - ``numpy`` for the ForgeFF reference path
   - ``numba`` for the ForgeFF JIT path
   - multispecies pair fits can freeze selected ``pair.*`` blocks with
     ``optimize = false`` in TOML
 - EAM:
+
   - ``ASE``
   - ``numpy``
   - ``numba``
 - ADP:
+
   - ``numpy``
   - ``numba``
 - Stillinger-Weber:
+
   - ``numpy``
   - ``numba``
 - Tersoff:
+
   - ``numba``
 
 If you need a LAMMPS output file, see :doc:`cli/export` for tabulated EAM

@@ -35,6 +35,8 @@ ForgeFF keeps the potfit ideas that matter for semi-empirical fitting:
 - extrapolation-grade style analysis for active-set selection
 - configuration-driven fitting instead of hard-coded internals
 - Stillinger-Weber reference behavior cross-checked against matscipy for the unary limit and potfit for multispecies layout
+- potfit-style I/O for converting external simulation outputs into reference
+  configurations, including VASP/OUTCAR-to-force-file workflows
 
 What ForgeFF adds
 -----------------
@@ -46,17 +48,22 @@ What ForgeFF adds
 - Native Stillinger-Weber NumPy and Numba engines.
 - ASE-backed calculator support for wrapped calculators.
 - A more direct mapping from the file format to the fitted terms.
+- I/O paths that keep the reference-config workflow explicit and scriptable,
+  similar to potfit's OUTCAR conversion tools.
 
-Practical summary
------------------
+Current scope
+-------------
 
-If you want a potfit-like workflow in Python, the path is simple:
+Today ForgeFF is best described as a Python package for semi-empirical
+potential fitting with a potfit-style workflow and a clearer TOML-first
+interface. The docs now cover:
 
-- use TOML to define the potential family and the initial guess
-- use tabulated EAM/ADP for alloy fitting
-- use built-in analytical forms or user-defined expressions for pair terms
-- use the NumPy engine first, then the Numba engine where available for speed
+- the TOML example landing page and the real training launcher
+- pairwise, EAM, ADP, and analytical example families
+- the public engine choices and their dark-mode documentation styling
+- CLI commands such as ``forgeff train``, ``forgeff evaluate``, ``forgeff grade``,
+  ``forgeff error``, ``forgeff export``, and ``forgeff template``
+- the maintainer and credit pages with current project links
 
-If you are looking for the original potfit project, ForgeFF is best described
-as a Python package that follows that style and credits that design lineage.
-If you are looking for the codebase ForgeFF grew from, that is MOTEP.
+ForgeFF follows that style and credits that design lineage. If you are looking
+for the codebase ForgeFF grew from, that is MOTEP.

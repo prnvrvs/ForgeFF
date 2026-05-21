@@ -40,7 +40,7 @@ PAIR_FORM_IDS = {
 }
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _pair_eval(form_id, r, p):
     inv_r = 1.0 / r
 
@@ -264,7 +264,7 @@ def _pair_eval(form_id, r, p):
     return 0.0, 0.0
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_pair(form_id, params, i_list, j_list, dist, rvec, natoms):
     energy = 0.0
     local = np.zeros(natoms)
@@ -308,7 +308,7 @@ def _calculate_pair(form_id, params, i_list, j_list, dist, rvec, natoms):
     return energy, local, forces, virial
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_pair_multispecies(form_id, pair_index_map, pair_params, types, i_list, j_list, dist, rvec, natoms):
     energy = 0.0
     local = np.zeros(natoms)

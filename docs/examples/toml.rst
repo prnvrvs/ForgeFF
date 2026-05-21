@@ -129,6 +129,27 @@ block you want to freeze and keep training only the new species combinations.
 The ``morse/binary_frozen`` example shows the same idea in a compact binary
 setup.
 
+Frozen Morse, binary
+~~~~~~~~~~~~~~~~~~~~
+
+Initial TOML:
+
+.. literalinclude:: ../../examples/toml/pairwise/morse/binary_frozen/initial.toml
+   :language: toml
+
+Training setting:
+
+.. literalinclude:: ../../examples/toml/pairwise/morse/binary_frozen/forgeff.train.toml
+   :language: toml
+
+Run:
+
+.. code-block:: bash
+
+   python examples/toml/train.py --setting examples/toml/pairwise/morse/binary_frozen/forgeff.train.toml
+
+This example keeps ``pair.AlAl`` fixed and trains the new binary pair terms.
+
 Morse
 ~~~~~
 
@@ -246,6 +267,13 @@ The tabulated EAM examples follow the same block-level freeze convention as
 the TOML guide: set ``optimize = false`` on any ``pair``, ``density``, or
 ``embedding`` block to keep it fixed during fitting.
 
+Two-stage EAM fits are a practical way to extend a pretrained potential:
+
+1. fit the pair term while keeping density and embedding fixed
+2. freeze the pair block and fit density and embedding in a second pass
+
+The same pattern works for multispecies alloy and Finnis-Sinclair fits.
+
 Alloy, unary
 ~~~~~~~~~~~~
 
@@ -281,6 +309,10 @@ Output:
    | Stress per component (GPa)         |    90 |    10.7196 |    3.40096 |    5.85269 |
    +------------------------------------+-------+------------+------------+------------+
    Training complete.
+
+For the second stage, you can reuse the same example folder and flip the
+``optimize`` flags so the pair block is frozen and the density/embedding
+blocks become trainable.
 
 Alloy, binary
 ~~~~~~~~~~~~~

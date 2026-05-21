@@ -20,7 +20,7 @@ _MAX_EXP_ARG = 69.0776e0
 _MIN_EXP_ARG = -69.0776e0
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_fc(r: float, R: float, D: float) -> float:
     if r > R + D:
         return 0.0
@@ -29,14 +29,14 @@ def _calc_fc(r: float, R: float, D: float) -> float:
     return 0.5 * (1.0 - np.sin(np.pi * (r - R) / (2.0 * D)))
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_fc_d(r: float, R: float, D: float) -> float:
     if r > R + D or r < R - D:
         return 0.0
     return -0.25 * np.pi / D * np.cos(np.pi * (r - R) / (2.0 * D))
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_gijk(costheta: float, gamma: float, c: float, d: float, h: float) -> float:
     c2 = c * c
     d2 = d * d
@@ -44,7 +44,7 @@ def _calc_gijk(costheta: float, gamma: float, c: float, d: float, h: float) -> f
     return gamma * (1.0 + c2 / d2 - c2 / (d2 + hcth * hcth))
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_gijk_d(costheta: float, gamma: float, c: float, d: float, h: float) -> float:
     c2 = c * c
     d2 = d * d
@@ -52,7 +52,7 @@ def _calc_gijk_d(costheta: float, gamma: float, c: float, d: float, h: float) ->
     return (-2.0 * gamma * c2 * hcth) / (d2 + hcth * hcth) ** 2
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_costheta_d(rij: np.ndarray, rik: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     abs_rij = np.sqrt(rij[0] * rij[0] + rij[1] * rij[1] + rij[2] * rij[2])
     abs_rik = np.sqrt(rik[0] * rik[0] + rik[1] * rik[1] + rik[2] * rik[2])
@@ -63,7 +63,7 @@ def _calc_costheta_d(rij: np.ndarray, rik: np.ndarray) -> tuple[np.ndarray, np.n
     return dri, drj, drk
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_zeta_d(
     rij: np.ndarray,
     rik: np.ndarray,
@@ -115,19 +115,19 @@ def _calc_zeta_d(
     return dri, drj, drk
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_bij(zeta: float, beta: float, n: float) -> float:
     tmp = beta * zeta
     return (1.0 + tmp**n) ** (-1.0 / (2.0 * n))
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _calc_bij_d(zeta: float, beta: float, n: float) -> float:
     tmp = beta * zeta
     return -0.5 * (1.0 + tmp**n) ** (-1.0 - (1.0 / (2.0 * n))) * (beta * tmp ** (n - 1.0))
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_tersoff(
     atom_species: np.ndarray,
     species_cutoffs: np.ndarray,

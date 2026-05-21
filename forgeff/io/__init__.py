@@ -1,6 +1,8 @@
 """IO."""
 
 from typing import Any
+import gzip
+import os
 
 import ase.io
 import numpy as np
@@ -9,6 +11,7 @@ from ase.io.formats import parse_filename
 
 from forgeff.io.toml import read_potential_toml
 from forgeff.io.lammps import write_lammps_potential
+from forgeff.io.potfit import read_force, write_force
 from forgeff.io.nist import read_nist_potential
 from forgeff.io.mlip.cfg import read_cfg, write_cfg
 from forgeff.potentials.ase.data import ASEData
@@ -24,7 +27,8 @@ def read(filename: str, species: list[int] | None = None) -> list[Atoms]:
     ----------
     filename : str
         File name to be read.
-        Both the MLIP `.cfg` format and the ASE-recognized formats can be parsed.
+        Both the MLIP `.cfg` format, potfit force configurations, and the
+        ASE-recognized formats can be parsed.
 
         To select a part of images, the ASE `@` syntax can be used as follows.
 
@@ -48,7 +52,8 @@ def read(filename: str, species: list[int] | None = None) -> list[Atoms]:
         - `x.db@H>0`: images with hydrogen atoms
 
     species : list[int]
-        List of atomic numbers for the atomic types in the MLIP `.cfg` format.
+        List of atomic numbers for the atomic types in the MLIP `.cfg` and
+        potfit force formats.
 
     Returns
     -------
@@ -56,10 +61,13 @@ def read(filename: str, species: list[int] | None = None) -> list[Atoms]:
         List of ASE `Atoms` objects.
 
     """
+    filename = os.fspath(filename)
     filename_parsed, index = parse_filename(filename)
     index = ":" if index is None else index
     if isinstance(filename_parsed, str) and filename_parsed.endswith(".cfg"):
         images = read_cfg(filename_parsed, index=index, species=species)
+    elif isinstance(filename_parsed, str) and _looks_like_potfit_force(filename_parsed):
+        images = read_force(filename_parsed, index=index, species=species)
     else:
         images = ase.io.read(filename_parsed, index=index, parallel=False)
     return [images] if isinstance(images, Atoms) else images
@@ -72,20 +80,26 @@ def write(filename: str, images: list[Atoms], species: list[int] | None = None) 
     ----------
     filename : str
         File name to be written.
-        Both the MLIP `.cfg` format and the ASE-recognized formats can be parsed.
+        Both the MLIP `.cfg` format, potfit force configurations, and the
+        ASE-recognized formats can be written.
     images : list[Atoms]
         List of ASE `Atoms` objects.
     species : list[int]
-        List of atomic numbers for the atomic types in the MLIP `.cfg` format.
+        List of atomic numbers for the atomic types in the MLIP `.cfg` and
+        potfit force formats.
 
     """
+    filename = os.fspath(filename)
     if filename.endswith(".cfg"):
         return write_cfg(filename, images, species=species)
+    if filename.endswith(".force") or filename.endswith(".potfit"):
+        return write_force(filename, images, species=species)
     return ase.io.write(filename, images)
 
 
 def read_potential(filename: str, form: str | None = None):
     """Read a potential file into a potential data object."""
+    filename = os.fspath(filename)
     if filename.endswith(".toml"):
         return read_potential_toml(filename)
 
@@ -145,7 +159,22 @@ def read_potential(filename: str, form: str | None = None):
 
 def write_potential(filename: str, data: Any) -> None:
     """Write a potential data object."""
+    filename = os.fspath(filename)
     if filename.endswith(".npy") and hasattr(data, "write"):
         data.write(filename)
         return
     raise ValueError(f"Unsupported potential object: {type(data).__name__}")
+
+
+def _looks_like_potfit_force(filename: str) -> bool:
+    opener = gzip.open if filename.endswith(".gz") else open
+    try:
+        with opener(filename, "rt") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                return stripped.startswith("#N")
+    except OSError:
+        return False
+    return False

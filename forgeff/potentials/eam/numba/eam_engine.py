@@ -17,7 +17,7 @@ from ase.neighborlist import neighbor_list
 from ase import Atoms
 from forgeff.potentials.eam.data import EAMData
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _spline_eval_1d(coeffs, x, x0, h, idx0):
     nseg = coeffs.shape[1]
     idx = int((x - x0) / h)
@@ -30,7 +30,7 @@ def _spline_eval_1d(coeffs, x, x0, h, idx0):
              + coeffs[2, idx, idx0]) * dx + coeffs[3, idx, idx0])
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _spline_eval_2d(coeffs, x, x0, h, idx0, idx1):
     nseg = coeffs.shape[1]
     idx = int((x - x0) / h)
@@ -43,7 +43,7 @@ def _spline_eval_2d(coeffs, x, x0, h, idx0, idx1):
              + coeffs[2, idx, idx0, idx1]) * dx + coeffs[3, idx, idx0, idx1])
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _spline_deriv_1d(coeffs, x, x0, h, idx0):
     nseg = coeffs.shape[1]
     idx = int((x - x0) / h)
@@ -57,7 +57,7 @@ def _spline_deriv_1d(coeffs, x, x0, h, idx0):
             coeffs[2, idx, idx0])
 
 
-@numba.njit(cache=True, inline="always")
+@numba.njit(cache=False, inline="always")
 def _spline_deriv_2d(coeffs, x, x0, h, idx0, idx1):
     nseg = coeffs.shape[1]
     idx = int((x - x0) / h)
@@ -71,7 +71,7 @@ def _spline_deriv_2d(coeffs, x, x0, h, idx0, idx1):
             coeffs[2, idx, idx0, idx1])
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
                         emb_coeffs, dens_coeffs, phi_coeffs,
                         drho, dr, rho_start, r_start):
@@ -139,7 +139,7 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
     return pair_energy, embedding_energy, total_density, site_energies, forces, stresses
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=False)
 def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
                      emb_coeffs, dens_coeffs, phi_coeffs,
                      drho, dr, rho_start, r_start):
