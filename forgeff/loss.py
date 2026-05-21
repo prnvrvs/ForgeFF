@@ -138,7 +138,12 @@ class LossFunctionEnergy:
             dtype=float,
             count=len(images),
         )
-        self.inverse_numbers_of_atoms = 1.0 / numbers_of_atoms
+        self.inverse_numbers_of_atoms = np.divide(
+            1.0,
+            numbers_of_atoms,
+            out=np.zeros_like(numbers_of_atoms),
+            where=numbers_of_atoms > 0,
+        )
 
         self.configuration_weight = np.ones(len(self.images))
 
@@ -221,7 +226,12 @@ class LossFunctionForces:
             dtype=float,
             count=len(images),
         )
-        self.inverse_numbers_of_atoms = 1.0 / numbers_of_atoms
+        self.inverse_numbers_of_atoms = np.divide(
+            1.0,
+            numbers_of_atoms,
+            out=np.zeros_like(numbers_of_atoms),
+            where=numbers_of_atoms > 0,
+        )
 
         self.idcs_frc = np.fromiter(
             (i for i, atoms in enumerate(images) if "forces" in atoms.calc.results),
@@ -310,7 +320,11 @@ class LossFunctionStress:
         self.comm = comm
 
         self.idcs_str = np.fromiter(
-            (i for i, atoms in enumerate(images) if "stress" in atoms.calc.results),
+            (
+                i
+                for i, atoms in enumerate(images)
+                if atoms.cell.rank == 3 and "stress" in atoms.calc.results
+            ),
             dtype=int,
         )
 
@@ -325,7 +339,12 @@ class LossFunctionStress:
             dtype=float,
             count=len(images),
         )
-        self.inverse_numbers_of_atoms = 1.0 / numbers_of_atoms
+        self.inverse_numbers_of_atoms = np.divide(
+            1.0,
+            numbers_of_atoms,
+            out=np.zeros_like(numbers_of_atoms),
+            where=numbers_of_atoms > 0,
+        )
 
         self.configuration_weight = np.ones(len(self.images))
 
@@ -543,7 +562,11 @@ class ErrorPrinter:
             dtype=int,
         )
         self.idcs_str = np.fromiter(
-            (i for i, atoms in enumerate(images) if "stress" in atoms.calc.targets),
+            (
+                i
+                for i, atoms in enumerate(images)
+                if atoms.cell.rank == 3 and "stress" in atoms.calc.targets and "stress" in atoms.calc.results
+            ),
             dtype=int,
         )
 
@@ -558,6 +581,7 @@ class ErrorPrinter:
         iterable = (
             ((atoms.calc.results["energy"] - atoms.calc.targets["energy"]) / len(atoms))
             for atoms in self.images
+            if len(atoms) > 0
         )
         return _calc_errors_from_diff(np.fromiter(iterable, dtype=float))
 
