@@ -238,7 +238,7 @@ class NumbaADPEngine:
             "forces": forces,
         }
         
-        if atoms.cell.rank == 3:
+        if atoms.cell.rank == 3 and atoms.get_volume() != 0.0:
             stress_tensor = 0.5 * np.sum(stresses, axis=0) / atoms.get_volume()
             results["stress"] = full_3x3_to_voigt_6_stress(stress_tensor)
             

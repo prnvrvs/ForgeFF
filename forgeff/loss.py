@@ -400,7 +400,8 @@ class LossFunctionStress:
             dtype=int,
         )
 
-        self.volumes = np.fromiter(
+        self.volumes = np.zeros(len(images), dtype=float)
+        self.volumes[self.idcs_str] = np.fromiter(
             (images[i].cell.volume for i in self.idcs_str),
             dtype=float,
             count=self.idcs_str.size,
@@ -573,6 +574,15 @@ class LossFunctionBase(ABC):
                         self.images[i].calc.engine.rbd, dest=0, tag=i + 2 * ncnf
                     )
 
+    def _set_parameters(self, parameters: npt.NDArray[np.float64] | None) -> None:
+        """Broadcast and apply a parameter vector when one is provided."""
+        parameters = self.comm.bcast(parameters, root=0)
+        if parameters is None:
+            return
+        self.pot_data.parameters = parameters
+        for atoms in self.images:
+            atoms.calc.update_parameters(self.pot_data)
+
     def calc_loss_function(self) -> float:
         """Calculate the value of the loss function.
 
@@ -596,6 +606,8 @@ class LossFunctionBase(ABC):
         npt.NDArray[np.float64]
 
         """
+        self._set_parameters(parameters)
+        self._run_calculations()
         jac = self.setting.energy_weight * self.loss_energy.jac()
         if self.loss_forces.idcs_frc.size and self.setting.forces_weight:
             jac += self.setting.forces_weight * self.loss_forces.jac()
@@ -745,8 +757,5 @@ class LossFunction(LossFunctionBase):
             atoms.calc.targets = targets
 
     def __call__(self, parameters: list[float]) -> float:
-        parameters = self.comm.bcast(parameters, root=0)
-        self.pot_data.parameters = parameters
-        for atoms in self.images:
-            atoms.calc.update_parameters(self.pot_data)
+        self._set_parameters(parameters)
         return self.calc_loss_function()

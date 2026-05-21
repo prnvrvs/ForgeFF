@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
-from ase.stress import full_3x3_to_voigt_6_stress
+from ase.stress import full_3x3_to_voigt_6_stress, voigt_6_to_full_3x3_stress
 
 from .data import SWData
 
@@ -321,13 +321,14 @@ class NumpySWEngine:
                     virial += np.einsum("pi,pj->ij", rij, f_j)
                     virial += np.einsum("pi,pj->ij", rik, f_k)
 
-        stress = full_3x3_to_voigt_6_stress(-virial / atoms.get_volume())
-        return {
+        results = {
             "energy": energy,
             "energies": np.full(natoms, energy / natoms if natoms else 0.0, dtype=float),
             "forces": forces,
-            "stress": stress,
         }
+        if atoms.cell.rank == 3 and atoms.get_volume() != 0.0:
+            results["stress"] = full_3x3_to_voigt_6_stress(-virial / atoms.get_volume())
+        return results
 
     def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         orig_params = np.asarray(self.sw_data.parameters, dtype=float).copy()
@@ -351,7 +352,11 @@ class NumpySWEngine:
 
                 d_energy[i] = (plus["energy"] - minus["energy"]) / (2.0 * delta)
                 d_forces[i] = (plus["forces"] - minus["forces"]) / (2.0 * delta)
-                d_stress[i] = (plus["stress"] - minus["stress"]) / (2.0 * delta)
+                if "stress" in plus and "stress" in minus:
+                    d_stress[i] = (
+                        voigt_6_to_full_3x3_stress(plus["stress"])
+                        - voigt_6_to_full_3x3_stress(minus["stress"])
+                    ) / (2.0 * delta)
         finally:
             self.sw_data.parameters = orig_params
         return d_energy, d_forces, d_stress

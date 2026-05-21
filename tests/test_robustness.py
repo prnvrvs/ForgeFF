@@ -9,12 +9,17 @@ import pytest
 from forgeff.calculator import make_calculator
 from forgeff.io import read_potential
 from forgeff.io import write_potential
-from forgeff.loss import ErrorPrinter, LossFunctionStress
+from forgeff.loss import ErrorPrinter, LossFunction, LossFunctionStress
 from forgeff.loss import LossSetting
 from forgeff.loss import _resolve_species_energy_offsets
+from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.sw.data import SWData
+from forgeff.potentials.sw.numpy import NumpySWEngine
+from forgeff.potentials.sw.numba import NumbaSWEngine
 from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.eam.adp_data import ADPData
+from forgeff.potentials.eam.numpy.adp_engine import NumpyADPEngine
+from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
 
 
 def test_empty_atoms_stress_loss_skips_non_3d_cells() -> None:
@@ -31,6 +36,26 @@ def test_empty_atoms_stress_loss_skips_non_3d_cells() -> None:
     assert loss.calculate() == 0.0
 
 
+def test_stress_loss_uses_global_volume_indices_for_mixed_cells() -> None:
+    cluster = Atoms("Al", positions=[[0.0, 0.0, 0.0]])
+    cluster.calc = SimpleNamespace(
+        results={"stress": np.zeros(6, dtype=float)},
+        targets={"stress": np.zeros(6, dtype=float)},
+    )
+    bulk = Atoms("Al", positions=[[0.0, 0.0, 0.0]], cell=[2.0, 2.0, 2.0], pbc=True)
+    bulk.calc = SimpleNamespace(
+        results={"stress": np.ones(6, dtype=float)},
+        targets={"stress": np.zeros(6, dtype=float)},
+    )
+
+    pot_data = SimpleNamespace(number_of_parameters_optimized=1)
+    loss = LossFunctionStress([cluster, bulk], pot_data)
+
+    assert loss.idcs_str.tolist() == [1]
+    np.testing.assert_allclose(loss.volumes, np.array([0.0, 8.0]))
+    assert np.isfinite(loss.calculate())
+
+
 def test_empty_atoms_error_printer_skips_non_3d_cells() -> None:
     atoms = Atoms()
     atoms.calc = SimpleNamespace(
@@ -43,6 +68,80 @@ def test_empty_atoms_error_printer_skips_non_3d_cells() -> None:
     assert printer.idcs_str.size == 0
     errors = printer.calculate()
     assert errors["stress"]["N"] == 0
+
+
+def test_loss_jac_updates_parameters_before_differentiating() -> None:
+    pot_data = ASEData(
+        engine="numpy",
+        calculator_kwargs={
+            "calculator": "numpy",
+            "expression": "epsilon * r",
+            "parameter_names": ["epsilon"],
+            "cutoff": 3.0,
+        },
+    )
+    pot_data.add_parameter("epsilon", (), 1.0)
+    atoms = Atoms("Al2", positions=[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    atoms.calc = SimpleNamespace(results={"energy": 0.0})
+    loss = LossFunction(
+        [atoms],
+        pot_data,
+        LossSetting(forces_weight=0.0, stress_weight=0.0, energy_per_atom=False),
+        engine="numpy",
+    )
+
+    jac = loss.jac(np.array([2.0]))
+
+    np.testing.assert_allclose(loss.pot_data.parameters, np.array([2.0]))
+    np.testing.assert_allclose(jac, np.array([4.0]), rtol=1e-8, atol=1e-8)
+
+
+def test_ase_engine_adapter_jacobians_are_finite_difference_values() -> None:
+    pot_data = ASEData(
+        engine="numpy",
+        calculator_kwargs={
+            "calculator": "numpy",
+            "expression": "epsilon * r",
+            "parameter_names": ["epsilon"],
+            "cutoff": 3.0,
+        },
+    )
+    pot_data.add_parameter("epsilon", (), 2.0)
+    atoms = Atoms("Al2", positions=[[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
+    calc = make_calculator(pot_data, engine="numpy")
+
+    np.testing.assert_allclose(calc.engine.jac_energy(atoms).parameters, np.array([1.5]), rtol=1e-8, atol=1e-8)
+
+
+@pytest.mark.parametrize("engine_cls", [NumpySWEngine, NumbaSWEngine])
+def test_sw_engines_skip_stress_for_nonperiodic_zero_volume_cells(engine_cls) -> None:
+    atoms = Atoms("Si", positions=[[0.0, 0.0, 0.0]])
+    result = engine_cls(SWData(species=["Si"])).calculate(atoms)
+
+    assert "stress" not in result
+    assert np.isfinite(result["energy"])
+
+
+@pytest.mark.parametrize("engine_cls", [NumpyADPEngine, NumbaADPEngine])
+def test_adp_engines_skip_stress_for_nonperiodic_zero_volume_cells(engine_cls) -> None:
+    r = np.linspace(0.1, 3.0, 5)
+    rho = np.linspace(0.0, 2.0, 5)
+    data = ADPData(
+        species_count=1,
+        r_grid=r,
+        rho_grid=rho,
+        phi_values=np.zeros((1, 1, len(r))),
+        rho_values=np.zeros((1, 1, len(r))),
+        emb_values=np.zeros((1, len(rho))),
+        dipole_values=np.zeros((1, 1, len(r))),
+        quadrupole_values=np.zeros((1, 1, len(r))),
+    )
+    data.species = np.array([13], dtype=np.int32)
+    atoms = Atoms("Al", positions=[[0.0, 0.0, 0.0]])
+    result = engine_cls(data).calculate(atoms)
+
+    assert "stress" not in result
+    assert np.isfinite(result["energy"])
 
 
 def test_manual_species_energy_offsets_are_added_to_predictions() -> None:
