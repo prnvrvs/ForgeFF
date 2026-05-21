@@ -1,0 +1,18 @@
+[potential]
+family = "analytical"
+form = "morse"
+cutoff = 8.0
+
+[species]
+order = ["Al", "Cu"]
+
+[pair.AlAl]
+# Freeze the pretrained Al-Al block and keep the cross/species terms trainable.
+initial = [0.20, 1.50, 2.75]
+optimize = false
+
+[pair.AlCu]
+initial = [0.18, 1.45, 2.80]
+
+[pair.CuCu]
+initial = [0.22, 1.60, 2.90]

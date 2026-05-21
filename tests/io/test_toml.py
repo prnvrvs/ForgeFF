@@ -6,7 +6,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from ase import Atoms
 
+from forgeff.calculator import make_calculator
 from forgeff.io import read_potential
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.eam.adp_data import ADPData
@@ -138,10 +140,61 @@ initial = [0.25, 2.70]
     assert data.calculator_kwargs["pair_terms"][0]["parameter_names"] == ["epsilon", "sigma"]
 
 
+@pytest.mark.parametrize("engine", ["numpy", "numba"])
+def test_read_multispecies_pairwise_partial_optimization_flags(tmp_path: Path, engine: str) -> None:
+    path = _write_text(
+        tmp_path / f"multispecies_partial_{engine}.toml",
+        f"""
+[potential]
+family = "analytical"
+form = "morse"
+engine = "{engine}"
+cutoff = 8.0
+
+[species]
+order = ["Al", "Cu"]
+
+[pair.AlAl]
+initial = [0.20, 1.50, 2.75]
+optimize = false
+
+[pair.AlCu]
+initial = [0.18, 1.40, 2.85]
+
+[pair.CuCu]
+initial = [0.22, 1.60, 2.65]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, ASEData)
+    assert data.engine == engine
+    assert data.number_of_parameters_optimized == 6
+    assert data.calculator_kwargs["AlAl_De"] == pytest.approx(0.20)
+    assert data.calculator_kwargs["AlAl_a"] == pytest.approx(1.50)
+    assert data.calculator_kwargs["AlAl_re"] == pytest.approx(2.75)
+    assert data.calculator_kwargs["pair_terms"][0]["optimize"] is False
+
+    atoms = Atoms(
+        "AlCu",
+        positions=np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]], dtype=float),
+        cell=[10.0, 10.0, 10.0],
+        pbc=True,
+    )
+    atoms.calc = make_calculator(data, engine=engine)
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+    stress = atoms.get_stress()
+    assert np.isfinite(energy)
+    assert forces.shape == (2, 3)
+    assert stress.shape == (6,)
+
+
 @pytest.mark.parametrize(
     ("path", "expected_parameters"),
     [
         ("examples/toml/pairwise/morse/binary/initial.toml", 9),
+        ("examples/toml/pairwise/morse/binary_frozen/initial.toml", 6),
         ("examples/toml/pairwise/double_morse/binary/initial.toml", 21),
         ("examples/toml/pairwise/custom_expression/binary/initial.toml", 12),
     ],
@@ -151,6 +204,16 @@ def test_read_binary_pairwise_examples_have_per_pair_parameters(path: str, expec
     assert isinstance(data, ASEData)
     assert len(data.calculator_kwargs["pair_terms"]) == 3
     assert data.number_of_parameters_optimized == expected_parameters
+
+
+def test_read_binary_pairwise_frozen_example_excludes_frozen_pair() -> None:
+    data = read_potential(
+        str(Path(__file__).resolve().parents[2] / "examples/toml/pairwise/morse/binary_frozen/initial.toml")
+    )
+    assert isinstance(data, ASEData)
+    assert data.number_of_parameters_optimized == 6
+    assert data.calculator_kwargs["pair_terms"][0]["optimize"] is False
+    assert not any(name.startswith("AlAl_") for name in data.optimized)
 
 
 @pytest.mark.parametrize(

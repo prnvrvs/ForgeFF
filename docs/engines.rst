@@ -24,6 +24,8 @@ Supported combinations
   - ``ASE`` for built-in ASE-compatible forms
   - ``numpy`` for the ForgeFF reference path
   - ``numba`` for the ForgeFF JIT path
+  - multispecies pair fits can freeze selected ``pair.*`` blocks with
+    ``optimize = false`` in TOML
 - EAM:
   - ``ASE``
   - ``numpy``

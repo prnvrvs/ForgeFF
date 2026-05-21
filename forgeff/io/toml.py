@@ -543,10 +543,14 @@ def _read_multispecies_pair_toml(data: dict[str, Any], potential: dict[str, Any]
             "variable": str(term.get("variable", potential.get("variable", "r"))),
             "cutoff": term.get("cutoff", potential.get("cutoff")),
             "rc": term.get("rc", potential.get("rc")),
+            "optimize": _term_optimize_flag(term),
         }
         calculator_kwargs["pair_terms"].append(pair_entry)
         for idx, param_name in enumerate(parameter_names):
-            ase_data.add_parameter(f"{prefix}_{param_name}", (), values[idx])
+            scalar_name = f"{prefix}_{param_name}"
+            calculator_kwargs[scalar_name] = values[idx]
+            if _term_optimize_flag(term):
+                ase_data.add_parameter(scalar_name, (), values[idx])
         seen_pairs.add((i, j))
         seen_pairs.add((j, i))
 
@@ -598,9 +602,10 @@ def _populate_eam_arrays(
         phi[j, i] = values
         seen_pairs.add((i, j))
         seen_pairs.add((j, i))
+        optimize = _term_optimize_flag(term)
         if not _term_optimize_flag(term):
             block_mode = True
-        if _term_optimize_flag(term):
+        if optimize:
             optimized_blocks.append(f"pair.{labels[min(i, j)]}{labels[max(i, j)]}")
 
     _check_coverage(seen_pairs, _pair_key_pairs(spc), label="pair")
@@ -616,9 +621,10 @@ def _populate_eam_arrays(
             values = _term_array(term, nr) if "values" in term else _analytic_term_array(term, r_grid)
             rho[:, species_idx, :] = values
             seen_density.add((species_idx, species_idx))
-            if not _term_optimize_flag(term):
+            optimize = _term_optimize_flag(term)
+            if not optimize:
                 block_mode = True
-            if _term_optimize_flag(term):
+            if optimize:
                 optimized_blocks.append(f"density.{labels[species_idx]}")
     else:
         for name, term in density_terms.items():
@@ -633,9 +639,10 @@ def _populate_eam_arrays(
             values = _term_array(term, nr) if "values" in term else _analytic_term_array(term, r_grid)
             rho[i, j] = values
             seen_density.add((i, j))
-            if not _term_optimize_flag(term):
+            optimize = _term_optimize_flag(term)
+            if not optimize:
                 block_mode = True
-            if _term_optimize_flag(term):
+            if optimize:
                 optimized_blocks.append(f"density.{labels[i]}{labels[j]}")
 
     _check_coverage(seen_density, _density_key_pairs(spc, form), label="density")
@@ -650,9 +657,10 @@ def _populate_eam_arrays(
         values = _term_array(term, nrho) if "values" in term else _analytic_term_array(term, rho_grid)
         emb[species_idx] = values
         seen_embedding.add(species_idx)
-        if not block_mode:
-            block_mode = not _term_optimize_flag(term)
-        if _term_optimize_flag(term):
+        optimize = _term_optimize_flag(term)
+        if not optimize:
+            block_mode = True
+        if optimize:
             optimized_blocks.append(f"embedding.{labels[species_idx]}")
 
     missing_embedding = [idx for idx in range(spc) if idx not in seen_embedding]
@@ -687,9 +695,10 @@ def _populate_eam_arrays(
             dipole[j, i] = values
             seen_dipole.add((i, j))
             seen_dipole.add((j, i))
-            if not _term_optimize_flag(term):
+            optimize = _term_optimize_flag(term)
+            if not optimize:
                 block_mode = True
-            if _term_optimize_flag(term):
+            if optimize:
                 optimized_blocks.append(f"dipole.{labels[min(i, j)]}{labels[max(i, j)]}")
         _check_coverage(seen_dipole, _pair_key_pairs(spc), label="dipole")
 
@@ -708,9 +717,10 @@ def _populate_eam_arrays(
             quadrupole[j, i] = values
             seen_quadrupole.add((i, j))
             seen_quadrupole.add((j, i))
-            if not _term_optimize_flag(term):
+            optimize = _term_optimize_flag(term)
+            if not optimize:
                 block_mode = True
-            if _term_optimize_flag(term):
+            if optimize:
                 optimized_blocks.append(f"quadrupole.{labels[min(i, j)]}{labels[max(i, j)]}")
         _check_coverage(seen_quadrupole, _pair_key_pairs(spc), label="quadrupole")
         pot = ADPData(

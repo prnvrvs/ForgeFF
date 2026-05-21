@@ -84,6 +84,10 @@ that block during fitting. By default, blocks are optimized. The same freeze
 logic is available in Python by setting ``pot.optimized`` to the block names
 you want to update.
 
+Multispecies analytical pair terms use the same idea: set ``optimize = false``
+on a ``[pair.*]`` block to keep that pair fixed while training the remaining
+pair blocks.
+
 Field guide
 -----------
 

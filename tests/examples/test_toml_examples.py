@@ -66,6 +66,7 @@ def _compare_engine_outputs(path: Path, atoms: Atoms, engine_a: str, engine_b: s
     [
         ("examples/toml/pairwise/morse/unary/initial.toml", _al_supercell),
         ("examples/toml/pairwise/morse/binary/initial.toml", _binary_al_cu_cell),
+        ("examples/toml/pairwise/morse/binary_frozen/initial.toml", _binary_al_cu_cell),
         ("examples/toml/pairwise/double_morse/unary/initial.toml", _al_supercell),
         ("examples/toml/pairwise/double_morse/binary/initial.toml", _binary_al_cu_cell),
     ],
@@ -123,6 +124,9 @@ def test_adp_example_runs_on_unary_and_binary() -> None:
 def test_eam_train_settings_resolve_example_paths() -> None:
     morse = load_setting_train(_repo_root() / "examples/toml/pairwise/morse/unary/forgeff.train.toml")
     morse_binary = load_setting_train(_repo_root() / "examples/toml/pairwise/morse/binary/forgeff.train.toml")
+    morse_binary_frozen = load_setting_train(
+        _repo_root() / "examples/toml/pairwise/morse/binary_frozen/forgeff.train.toml"
+    )
     double_morse = load_setting_train(_repo_root() / "examples/toml/pairwise/double_morse/unary/forgeff.train.toml")
     double_morse_binary = load_setting_train(_repo_root() / "examples/toml/pairwise/double_morse/binary/forgeff.train.toml")
     custom_expression = load_setting_train(
@@ -143,6 +147,9 @@ def test_eam_train_settings_resolve_example_paths() -> None:
     assert morse_binary.potentials.initial.endswith("examples/toml/pairwise/morse/binary/initial.toml")
     assert morse_binary.potentials.final.endswith("examples/toml/pairwise/morse/binary/final.npy")
     assert morse_binary.configurations.training[0].endswith("examples/toml/data/binary/training.cfg")
+    assert morse_binary_frozen.potentials.initial.endswith("examples/toml/pairwise/morse/binary_frozen/initial.toml")
+    assert morse_binary_frozen.potentials.final.endswith("examples/toml/pairwise/morse/binary_frozen/final.npy")
+    assert morse_binary_frozen.configurations.training[0].endswith("examples/toml/data/binary/training.cfg")
     assert double_morse.potentials.initial.endswith("examples/toml/pairwise/double_morse/unary/initial.toml")
     assert double_morse.potentials.final.endswith("examples/toml/pairwise/double_morse/unary/final.npy")
     assert double_morse.common.engine == "numpy"

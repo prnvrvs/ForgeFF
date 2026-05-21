@@ -1,7 +1,6 @@
 """Optiimzers based on genetic algorithm (GA)."""
 
 import logging
-import random
 from collections.abc import Callable
 from typing import Any
 
@@ -40,6 +39,7 @@ class GeneticAlgorithm:
         elitism_rate: float = 0.1,
         crossover_probability: float = 0.7,
         *,
+        seed: int | None = None,
         superhuman: bool = True,
     ) -> None:
         """Genetic Algorithm (GA) implementation.
@@ -67,11 +67,11 @@ class GeneticAlgorithm:
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.population = []
+        self.rng = np.random.default_rng(seed)
         self.superhuman = superhuman
 
     def initialize_population(self) -> None:
         """Generate an initial population of individuals with random parameters."""
-        random.seed(40)
         self.population = [
             self.generate_random_parameters() for _ in range(self.population_size)
         ]
@@ -84,9 +84,7 @@ class GeneticAlgorithm:
         list[float]
 
         """
-        return [
-            random.uniform(lb, ub) for lb, ub in zip(self.lower_bound, self.upper_bound)
-        ]
+        return self.rng.uniform(self.lower_bound, self.upper_bound)
 
     def supermutation(
         self,
@@ -113,6 +111,13 @@ class GeneticAlgorithm:
 
         return refined_elites
 
+    def _choice(self, population: list[np.ndarray], size: int = 1) -> list[np.ndarray]:
+        """Sample individuals with replacement from a population."""
+        if not population:
+            return []
+        indices = self.rng.integers(0, len(population), size=size)
+        return [population[int(idx)] for idx in np.atleast_1d(indices)]
+
     def crossover(
         self,
         parent1: np.ndarray,
@@ -125,13 +130,13 @@ class GeneticAlgorithm:
         tuple[np.ndarray, np.ndarray]
 
         """
-        if random.random() < self.crossover_probability:
+        if self.rng.random() < self.crossover_probability:
             d = abs(np.array(parent1) - np.array(parent2))
             alpha = 0.5
             lower = np.minimum(parent1, parent2) - alpha * d
             upper = np.maximum(parent1, parent2) + alpha * d
-            child1 = np.random.uniform(lower, upper)
-            child2 = np.random.uniform(lower, upper)
+            child1 = self.rng.uniform(lower, upper)
+            child2 = self.rng.uniform(lower, upper)
             return child1, child2
         return parent1, parent2
 
@@ -145,8 +150,8 @@ class GeneticAlgorithm:
         """
         mutated_parameter = []
         for param, lower, upper in zip(parameter, self.lower_bound, self.upper_bound):
-            if random.random() < self.mutation_rate:
-                param += random.uniform(-0.1, 0.1)
+            if self.rng.random() < self.mutation_rate:
+                param += self.rng.uniform(-0.1, 0.1)
                 param = max(lower, min(upper, param))
             mutated_parameter.append(param)
         return mutated_parameter
@@ -202,7 +207,7 @@ class GeneticAlgorithm:
                 best_solution = self.population[best_index]
             offspring = elite[:]
             while len(offspring) < self.population_size:
-                parent1, parent2 = random.choices(elite, k=2)
+                parent1, parent2 = self._choice(elite, size=2)
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
             self.population = offspring
@@ -245,7 +250,7 @@ class GeneticAlgorithm:
                 best_solution = self.population[best_index]
             offspring = elite[:]
             while len(offspring) < self.population_size:
-                parent1, parent2 = random.choices(self.population, k=2)
+                parent1, parent2 = self._choice(self.population, size=2)
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
             self.population = offspring
@@ -289,8 +294,8 @@ class GeneticAlgorithm:
                 elite = self.supermutation(elite)
             offspring = elite[:]
             while len(offspring) < self.population_size:
-                parent1 = random.choice(elite)
-                parent2 = random.choice(self.population)
+                parent1 = self._choice(elite, size=1)[0]
+                parent2 = self._choice(self.population, size=1)[0]
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
 
@@ -342,7 +347,7 @@ class GeneticAlgorithm:
             # Generate offspring
             offspring = []
             while len(offspring) < (len(self.population) - len(elite)):
-                parent1, parent2 = random.choices(self.population, k=2)
+                parent1, parent2 = self._choice(self.population, size=2)
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
 
@@ -357,7 +362,9 @@ class GeneticAlgorithm:
             new_population = elite[:]  # Save elite
 
             num_to_select = self.population_size - len(elite)
-            new_population.extend(random.sample(combined_population, num_to_select))
+            if num_to_select > 0:
+                selection = self.rng.choice(len(combined_population), size=num_to_select, replace=False)
+                new_population.extend([combined_population[int(i)] for i in np.atleast_1d(selection)])
 
             self.population = new_population
 
@@ -403,6 +410,7 @@ class GeneticAlgorithmOptimizer(ParallelOptimizerBase):
             mutation_rate=0.1,
             elitism_rate=0.1,
             crossover_probability=0.8,
+            seed=kwargs.get("seed"),
             superhuman=True,
         )
         ga.initialize_population()

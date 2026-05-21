@@ -107,6 +107,7 @@ These examples show the engine selection in the training setting file. The
 current runnable pairwise examples are split into unary and binary folders:
 
 - ``morse/unary`` and ``morse/binary``
+- ``morse/binary_frozen`` for a binary fit with one frozen pair block
 - ``double_morse/unary`` and ``double_morse/binary``
 - ``custom_expression/unary`` and ``custom_expression/binary``
 
@@ -122,6 +123,11 @@ For binary and higher-order pairwise fits, you can also define one
 ``[pair.<species><species>]`` block per species pair and keep the common form
 at the top level. That layout is supported for the ForgeFF-native ``numpy``
 and ``numba`` paths.
+
+If you are extending an existing fit, set ``optimize = false`` on any pair
+block you want to freeze and keep training only the new species combinations.
+The ``morse/binary_frozen`` example shows the same idea in a compact binary
+setup.
 
 Morse
 ~~~~~

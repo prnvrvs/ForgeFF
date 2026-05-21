@@ -6,7 +6,7 @@ families.
 The examples are split into three groups:
 
 - `pairwise/`: built-in and user-defined pair potentials, split into
-  `unary/` and `binary/` leaves for each style
+  `unary/`, `binary/`, and `binary_frozen/` leaves for each style
 - `eam/`: tabulated EAM tables, including alloy and Finnis-Sinclair layouts,
   each in its own subfolder
 - `adp/`: tabulated ADP tables in a dedicated subfolder
@@ -43,3 +43,6 @@ The shared datasets live under `data/unary/` and `data/binary/`. The unary
 dataset is used for the Al-only examples, and the binary dataset is used for
 the Al-Cu examples. The binary pairwise examples fit one parameter block per
 species combination.
+
+The `pairwise/morse/binary_frozen/` example keeps the pretrained `Al-Al`
+pair fixed while fitting the remaining binary pair terms.

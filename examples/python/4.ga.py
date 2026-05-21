@@ -1,6 +1,5 @@
 import importlib.util
 from pathlib import Path
-import random
 import sys
 
 import numpy as np
@@ -33,7 +32,6 @@ def _rastrigin(x: np.ndarray) -> float:
 
 # %%
 # Genetic algorithm on a small multimodal landscape.
-random.seed(40)
 initial_guess = np.array([4.5, -3.5], dtype=float)
 ga = GeneticAlgorithm(
     _rastrigin,
@@ -44,6 +42,7 @@ ga = GeneticAlgorithm(
     mutation_rate=0.1,
     elitism_rate=0.1,
     crossover_probability=0.9,
+    seed=40,
 )
 ga.initialize_population()
 
