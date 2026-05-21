@@ -40,6 +40,14 @@ class CommonSetting(DataclassFromAny):
 
 
 @dataclass
+class EnergyOffsetSetting(DataclassFromAny):
+    """Optional per-species energy offsets."""
+
+    mode: str = "off"
+    values: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class ConfigurationsBase(DataclassFromAny):
     """Base class of the setting for the configurations."""
 

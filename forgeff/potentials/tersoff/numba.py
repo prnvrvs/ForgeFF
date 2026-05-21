@@ -11,6 +11,8 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.neighborlist import NeighborList
 from ase.stress import full_3x3_to_voigt_6_stress
 
+from forgeff.energy_offsets import apply_species_energy_offsets
+
 from .data import TersoffData, TersoffParameters
 
 
@@ -377,3 +379,5 @@ class NumbaTersoffCalculator(Calculator):
 
         if self.atoms.cell.rank == 3 and self.atoms.get_volume() != 0.0:
             self.results["stress"] = full_3x3_to_voigt_6_stress(virial / self.atoms.get_volume())
+
+        self.results = apply_species_energy_offsets(self.results, self.atoms, self.data)

@@ -136,6 +136,7 @@ def read_potential(filename: str, form: str | None = None):
             ase_data.parameters = np.asarray(data.get("params", []), dtype=float)
             ase_data.parameter_info = data.get("info", {})
             ase_data.optimized = list(ase_data.parameter_info)
+            ase_data.species_energy_offsets = dict(data.get("species_energy_offsets", {}))
             return ase_data
         return data
 

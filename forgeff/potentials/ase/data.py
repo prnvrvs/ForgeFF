@@ -30,6 +30,7 @@ class ASEData:
     optimized: list[str] = field(default_factory=list)
     # Mapping name -> (shape, initial_value)
     parameter_info: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    species_energy_offsets: Dict[str, float] = field(default_factory=dict)
 
     def add_parameter(self, name: str, shape: tuple, initial_value: Any = None):
         """Register a parameter for optimization."""
@@ -87,4 +88,12 @@ class ASEData:
 
     def write(self, filename: str):
         """Save the potential state."""
-        np.save(filename, {"params": self._parameters, "info": self.parameter_info, "kwargs": self.calculator_kwargs})
+        np.save(
+            filename,
+            {
+                "params": self._parameters,
+                "info": self.parameter_info,
+                "kwargs": self.calculator_kwargs,
+                "species_energy_offsets": self.species_energy_offsets,
+            },
+        )

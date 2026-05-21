@@ -92,6 +92,7 @@ class SWData:
     a: float = 1.8
     lambda1: float = 21.0
     gamma: float = 1.2
+    species_energy_offsets: dict[str, float] = field(default_factory=dict)
     optimized: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -269,6 +270,7 @@ class SWData:
                 "a": self.a,
                 "lambda1": self.lambda1,
                 "gamma": self.gamma,
+                "species_energy_offsets": self.species_energy_offsets,
                 "optimized": self.optimized,
             },
             allow_pickle=True,
@@ -290,4 +292,5 @@ class SWData:
             a=float(data.get("a", 1.8)),
             lambda1=float(data.get("lambda1", 21.0)),
             gamma=float(data.get("gamma", 1.2)),
+            species_energy_offsets=dict(data.get("species_energy_offsets", {})),
         )

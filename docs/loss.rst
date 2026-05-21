@@ -63,3 +63,20 @@ Default
     energy_per_conf = true
     forces_per_conf = true
     stress_per_conf = true
+
+Optional reference-energy offsets
+---------------------------------
+
+If your dataset does not include isolated-atom reference energies, you can
+optionally add per-species offsets in the training TOML under ``[loss]``:
+
+.. code-block:: toml
+
+    [loss]
+    species_energy_offset_mode = "manual"
+    species_energy_offsets = { Al = -4.0, Cr = -3.0 }
+
+Use ``species_energy_offset_mode = "regression"`` if you want ForgeFF to fit
+the offsets from the dataset composition and total energies. The fitted
+offsets are added to calculator predictions so the loss, RMSE, and reported
+energies use the same absolute-energy convention.

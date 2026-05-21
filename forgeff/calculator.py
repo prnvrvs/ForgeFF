@@ -7,6 +7,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
+from forgeff.energy_offsets import apply_species_energy_offsets
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.ase.engine import GenericASEEngine
 from forgeff.potentials.eam.data import EAMData
@@ -218,6 +219,7 @@ class EAM(Calculator):
     ) -> None:
         super().__init__(*args, **kwargs)
         engine_cls = make_eam_engine(engine)
+        self.pot_data = eam_data
         self.engine = engine_cls(eam_data, mode=mode)
 
     def update_parameters(self, eam_data: EAMData) -> None:
@@ -234,7 +236,7 @@ class EAM(Calculator):
         """Calculate."""
         super().calculate(atoms, properties, system_changes)
 
-        self.results = self.engine.calculate(self.atoms)
+        self.results = apply_species_energy_offsets(self.engine.calculate(self.atoms), self.atoms, self.pot_data)
 
         self.results["free_energy"] = self.results["energy"]
 
@@ -263,6 +265,7 @@ class SW(Calculator):
     ) -> None:
         super().__init__(*args, **kwargs)
         engine_cls = make_sw_engine(engine)
+        self.pot_data = sw_data
         self.engine = engine_cls(sw_data, mode=mode)
 
     def update_parameters(self, sw_data: SWData) -> None:
@@ -276,7 +279,7 @@ class SW(Calculator):
         system_changes: list[str] = all_changes,
     ) -> None:
         super().calculate(atoms, properties, system_changes)
-        self.results = self.engine.calculate(self.atoms)
+        self.results = apply_species_energy_offsets(self.engine.calculate(self.atoms), self.atoms, self.pot_data)
         self.results["free_energy"] = self.results["energy"]
         if self.atoms.cell.rank != 3 and "stress" in self.results:
             del self.results["stress"]
@@ -303,6 +306,7 @@ class ADP(Calculator):
     ) -> None:
         super().__init__(*args, **kwargs)
         engine_cls = make_adp_engine(engine)
+        self.pot_data = adp_data
         self.engine = engine_cls(adp_data, mode=mode)
 
     def update_parameters(self, adp_data: ADPData) -> None:
@@ -319,7 +323,7 @@ class ADP(Calculator):
         """Calculate."""
         super().calculate(atoms, properties, system_changes)
 
-        self.results = self.engine.calculate(self.atoms)
+        self.results = apply_species_energy_offsets(self.engine.calculate(self.atoms), self.atoms, self.pot_data)
 
         self.results["free_energy"] = self.results["energy"]
 
@@ -346,6 +350,7 @@ class ASECalculatorWrapper(Calculator):
         **kwargs: dict,
     ) -> None:
         super().__init__(*args, **kwargs)
+        self.pot_data = ase_data
         self.engine = GenericASEEngine(ase_data, mode=mode)
 
     def update_parameters(self, ase_data: ASEData) -> None:
@@ -362,7 +367,9 @@ class ASECalculatorWrapper(Calculator):
         """Calculate."""
         super().calculate(atoms, properties, system_changes)
 
-        self.results = self.engine.calculate(self.atoms)
+        self.results = apply_species_energy_offsets(
+            self.engine.calculate(self.atoms), self.atoms, self.engine.ase_data
+        )
 
         self.results["free_energy"] = self.results["energy"]
 

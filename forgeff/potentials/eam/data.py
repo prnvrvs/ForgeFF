@@ -41,6 +41,7 @@ class EAMData:
     emb_values: npt.NDArray[np.float64] | None = None
     
     _species: npt.NDArray[np.int32] = field(default_factory=_default_factory_int)
+    species_energy_offsets: dict[str, float] = field(default_factory=dict)
     optimized: list[str] = field(default_factory=lambda: ["phi_values", "rho_values", "emb_values"])
 
     @property

@@ -68,6 +68,7 @@ class TersoffData:
     species: list[str] = field(default_factory=list)
     parameter_table: npt.NDArray[np.float64] = field(default_factory=_default_parameter_table)
     cutoff_skin: float = 0.3
+    species_energy_offsets: dict[str, float] = field(default_factory=dict)
     optimized: list[str] = field(default_factory=lambda: ["parameter_table"])
 
     @classmethod
@@ -138,7 +139,16 @@ class TersoffData:
         pass
 
     def write(self, filename: str | Path) -> None:
-        np.save(filename, {"species": self.species, "parameter_table": self.parameter_table, "cutoff_skin": self.cutoff_skin}, allow_pickle=True)
+        np.save(
+            filename,
+            {
+                "species": self.species,
+                "parameter_table": self.parameter_table,
+                "cutoff_skin": self.cutoff_skin,
+                "species_energy_offsets": self.species_energy_offsets,
+            },
+            allow_pickle=True,
+        )
 
     @classmethod
     def from_file(cls, filename: str | Path) -> "TersoffData":

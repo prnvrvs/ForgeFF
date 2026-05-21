@@ -3,12 +3,13 @@
 import logging
 from abc import ABC, abstractmethod
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from ase import Atoms
+from ase.data import chemical_symbols
 from ase.stress import voigt_6_to_full_3x3_stress
 from scipy.constants import eV
 
@@ -32,6 +33,8 @@ class LossSetting(DataclassFromAny):
     energy_per_conf: bool = True
     forces_per_conf: bool = True
     stress_per_conf: bool = True
+    species_energy_offset_mode: str = "off"
+    species_energy_offsets: dict[str, float] = field(default_factory=dict)
 
 
 def _calc_errors_from_diff(diff: np.ndarray) -> dict[str, float]:
@@ -53,6 +56,75 @@ def _format_error_value(value: float) -> str:
     if np.isneginf(value):
         return "-inf"
     return f"{value:.6g}"
+
+
+def _normalize_species_label(value: Any) -> str:
+    if isinstance(value, (int, np.integer)):
+        return str(chemical_symbols[int(value)])
+    return str(value)
+
+
+def _resolve_species_energy_offsets(
+    images: list[Atoms],
+    pot_data: Any,
+    setting: LossSetting,
+) -> dict[str, float]:
+    mode = str(getattr(setting, "species_energy_offset_mode", "off")).lower()
+    manual = getattr(setting, "species_energy_offsets", {}) or {}
+    existing = getattr(pot_data, "species_energy_offsets", {}) or {}
+    if mode in {"", "off", "false", "none"}:
+        merged = dict(existing)
+        merged.update({_normalize_species_label(k): float(v) for k, v in manual.items()})
+        return merged
+
+    labels = [_normalize_species_label(item) for item in getattr(pot_data, "species", [])]
+    if not labels:
+        seen: list[str] = []
+        for atoms in images:
+            for number in atoms.numbers.tolist():
+                label = _normalize_species_label(number)
+                if label not in seen:
+                    seen.append(label)
+        labels = seen
+
+    if mode == "manual":
+        return {_normalize_species_label(k): float(v) for k, v in manual.items()}
+
+    if mode != "regression":
+        raise ValueError(
+            "Unknown species_energy_offset_mode. Use 'off', 'manual', or 'regression'."
+        )
+
+    if not labels:
+        raise ValueError("Regression energy offsets require a non-empty species list.")
+
+    x_rows: list[list[float]] = []
+    y_vals: list[float] = []
+    label_to_index = {label: idx for idx, label in enumerate(labels)}
+    for atoms in images:
+        if atoms.calc is None or "energy" not in getattr(atoms.calc, "targets", {}):
+            continue
+        row = [0.0] * len(labels)
+        for number in atoms.numbers.tolist():
+            label = _normalize_species_label(number)
+            if label not in label_to_index:
+                raise ValueError(
+                    f"Atom species {label!r} is not present in the energy-offset species list {labels!r}."
+                )
+            row[label_to_index[label]] += 1.0
+        x_rows.append(row)
+        y_vals.append(float(atoms.calc.targets["energy"]))
+
+    if not x_rows:
+        raise ValueError("Regression energy offsets require at least one structure with energy targets.")
+
+    x = np.asarray(x_rows, dtype=float)
+    y = np.asarray(y_vals, dtype=float)
+    coeffs, *_ = np.linalg.lstsq(x, y, rcond=None)
+
+    offsets = {label: float(value) for label, value in zip(labels, coeffs, strict=True)}
+    offsets.update({_normalize_species_label(k): float(v) for k, v in manual.items()})
+    return offsets
 
 
 def format_error_statistics(errors: dict[str, dict[str, float]]) -> str:
@@ -655,6 +727,12 @@ class LossFunction(LossFunctionBase):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.engine = engine
+        if hasattr(self.pot_data, "species_energy_offsets"):
+            self.pot_data.species_energy_offsets = _resolve_species_energy_offsets(
+                self.images,
+                self.pot_data,
+                self.setting,
+            )
         for atoms in self.images:
             targets = atoms.calc.results
             atoms.calc = make_calculator(
