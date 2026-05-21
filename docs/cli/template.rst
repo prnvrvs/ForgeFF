@@ -13,6 +13,7 @@ Usage
     forgeff template analytical --species Al Cu --form morse
     forgeff template eam --species Al Cu --form alloy
     forgeff template sw --species Si
+    forgeff template tersoff --species Si C
 
 The command prints the template to stdout unless ``--output`` is given:
 
@@ -23,4 +24,3 @@ The command prints the template to stdout unless ``--output`` is given:
 The generated file is only the potential definition. The matching
 ``forgeff.train.toml`` still lives in the training settings workflow and keeps
 ``[common].engine`` separate from the potential description.
-

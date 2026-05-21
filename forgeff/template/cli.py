@@ -40,6 +40,15 @@ def _sw_lambda_labels(species: list[str]) -> list[tuple[str, str, str]]:
     ]
 
 
+def _tersoff_triplet_labels(species: list[str]) -> list[tuple[str, str, str]]:
+    return [
+        (species[i], species[j], species[k])
+        for i in range(len(species))
+        for j in range(len(species))
+        for k in range(len(species))
+    ]
+
+
 def _format_blocks(blocks: list[str]) -> str:
     return "\n".join(blocks).rstrip() + "\n"
 
@@ -210,6 +219,26 @@ def _sw_template(species: list[str]) -> str:
     return _format_blocks(blocks)
 
 
+def _tersoff_template(species: list[str]) -> str:
+    blocks = [
+        "[potential]",
+        'family = "tersoff"',
+        "cutoff_skin = 0.3",
+        "",
+        _species_block(species).rstrip(),
+        "",
+    ]
+    for left, middle, right in _tersoff_triplet_labels(species):
+        blocks.extend(
+            [
+                f"[triplet.{left}{middle}{right}]",
+                "initial = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+                "",
+            ]
+        )
+    return _format_blocks(blocks)
+
+
 def build_template(
     family: str,
     species: list[str],
@@ -227,6 +256,8 @@ def build_template(
         return _adp_template(species)
     if family == "sw":
         return _sw_template(species)
+    if family == "tersoff":
+        return _tersoff_template(species)
     raise ValueError(f"Unknown template family {family!r}")
 
 
@@ -234,7 +265,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     """Add arguments."""
     parser.add_argument(
         "family",
-        choices=["analytical", "eam", "adp", "sw"],
+        choices=["analytical", "eam", "adp", "sw", "tersoff"],
         help="Potential family to generate a TOML template for.",
     )
     parser.add_argument(

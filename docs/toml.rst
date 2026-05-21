@@ -16,7 +16,7 @@ worked examples, see:
 - :doc:`example`
 
 If you want a starter file, ``forgeff template`` can generate a valid TOML
-template for analytical, EAM, ADP, or Stillinger-Weber potentials.
+template for analytical, EAM, ADP, Stillinger-Weber, or Tersoff potentials.
 
 Template generation
 -------------------
@@ -26,10 +26,11 @@ you a valid starting point for each family:
 
 .. code-block:: bash
 
-   forgeff template analytical --species Al Cu --form morse
-   forgeff template eam --species Fe Ni --form alloy
-   forgeff template adp --species Al Cu
-   forgeff template sw --species Si
+forgeff template analytical --species Al Cu --form morse
+forgeff template eam --species Fe Ni --form alloy
+forgeff template adp --species Al Cu
+forgeff template sw --species Si
+forgeff template tersoff --species Si C
 
 Use ``--output`` when you want the template written to a file instead of
 printed to the terminal:
@@ -51,7 +52,7 @@ The example set includes unary and binary layouts for the supported families:
 - pairwise: unary and binary
 - EAM: unary alloy, binary alloy, unary FS, and binary FS
 - ADP: unary and binary
-- Tersoff: explicit species-triple tables
+- Tersoff: explicit species-triple tables and templates
 
 Overview
 --------

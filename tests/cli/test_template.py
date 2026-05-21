@@ -10,6 +10,7 @@ from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.sw.data import SWData
+from forgeff.potentials.tersoff.data import TersoffData
 from forgeff.template.cli import build_template
 from forgeff.template.cli import run
 
@@ -25,6 +26,10 @@ def _pair_count(count: int) -> int:
 
 def _lambda_count(count: int) -> int:
     return count * count * (count + 1) // 2
+
+
+def _triplet_count(count: int) -> int:
+    return count**3
 
 
 def _roundtrip_template(tmp_path: Path, template: str, name: str) -> object:
@@ -179,3 +184,17 @@ def test_template_matrix_sw_roundtrip(tmp_path: Path, count: int) -> None:
     data = _roundtrip_template(tmp_path, template, f"sw_{count}.toml")
     assert isinstance(data, SWData)
     assert data.species == species
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_template_matrix_tersoff_roundtrip(tmp_path: Path, count: int) -> None:
+    species = _species(count)
+    template = build_template("tersoff", species)
+
+    assert 'family = "tersoff"' in template
+    assert template.count("[triplet.") == _triplet_count(count)
+
+    data = _roundtrip_template(tmp_path, template, f"tersoff_{count}.toml")
+    assert isinstance(data, TersoffData)
+    assert data.species == species
+    assert data.number_of_parameters_optimized == _triplet_count(count) * 14
