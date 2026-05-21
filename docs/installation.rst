@@ -15,10 +15,6 @@ GitHub
 
 The development version is available from `GitHub <https://github.com/prnvrvs/ForgeFF>`_.
 
-.. code-block:: bash
-
-    pip install git+https://github.com/prnvrvs/ForgeFF.git
-
 For development:
 
 - Clone the GitHub repository.

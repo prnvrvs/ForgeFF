@@ -1,7 +1,7 @@
 # [ForgeFF: semi-empirical potential fitting in Python](https://github.com/prnvrvs/ForgeFF)
 
-[![PyPI version](https://badge.fury.io/py/forgeff.svg)](https://badge.fury.io/py/forgeff)
-[![Downloads](https://static.pepy.tech/badge/forgeff/month)](https://pepy.tech/project/forgeff)
+[![Latest release](https://img.shields.io/github/v/release/prnvrvs/ForgeFF?display_name=tag)](https://github.com/prnvrvs/ForgeFF/releases/latest)
+[![Release downloads](https://img.shields.io/github/downloads/prnvrvs/ForgeFF/total)](https://github.com/prnvrvs/ForgeFF/releases)
 [![GitHubActions](https://github.com/prnvrvs/ForgeFF/actions/workflows/tests.yml/badge.svg)](https://github.com/prnvrvs/ForgeFF/actions?query=workflow%3ATests)
 
 ForgeFF is a Python toolkit for fitting semi-empirical interatomic potentials.

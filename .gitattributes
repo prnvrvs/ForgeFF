@@ -1,0 +1,4 @@
+# Keep reference potential data out of GitHub Linguist language stats.
+tests/data_path/nist/* linguist-vendored
+examples/toml/data/** linguist-vendored
+docs/_static/performance/* linguist-vendored
