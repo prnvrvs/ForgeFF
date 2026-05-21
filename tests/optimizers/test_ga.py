@@ -169,3 +169,65 @@ def test_ga_initialize_population_does_not_touch_global_random_state() -> None:
     after = random.random()
 
     assert after == baseline
+
+
+def test_ga_evolve_with_elites_keeps_population_size() -> None:
+    from forgeff.optimizers.ga import GeneticAlgorithm
+
+    ga = GeneticAlgorithm(
+        lambda x: float(np.sum(np.square(x))),
+        np.array([0.0, 0.0]),
+        lower_bound=np.array([-1.0, -1.0]),
+        upper_bound=np.array([1.0, 1.0]),
+        population_size=11,
+        mutation_rate=0.2,
+        elitism_rate=0.3,
+        crossover_probability=1.0,
+        seed=1,
+    )
+    ga.initialize_population()
+    ga.evolve_with_elites(lambda x: float(np.sum(np.square(x))), 3)
+
+    assert len(ga.population) == ga.population_size
+
+
+def test_ga_evolve_with_common_keeps_population_size() -> None:
+    from forgeff.optimizers.ga import GeneticAlgorithm
+
+    ga = GeneticAlgorithm(
+        lambda x: float(np.sum(np.square(x))),
+        np.array([0.0, 0.0]),
+        lower_bound=np.array([-1.0, -1.0]),
+        upper_bound=np.array([1.0, 1.0]),
+        population_size=11,
+        mutation_rate=0.2,
+        elitism_rate=0.3,
+        crossover_probability=1.0,
+        seed=2,
+    )
+    ga.initialize_population()
+    ga.evolve_with_common(lambda x: float(np.sum(np.square(x))), 3)
+
+    assert len(ga.population) == ga.population_size
+
+
+def test_ga_elitism_never_returns_empty_elite() -> None:
+    from forgeff.optimizers.ga import GeneticAlgorithm
+
+    ga = GeneticAlgorithm(
+        lambda x: float(np.sum(np.square(x))),
+        np.array([0.0, 0.0]),
+        lower_bound=np.array([-1.0, -1.0]),
+        upper_bound=np.array([1.0, 1.0]),
+        population_size=2,
+        mutation_rate=0.0,
+        elitism_rate=0.0,
+        crossover_probability=1.0,
+        seed=3,
+    )
+    ga.initialize_population()
+    fitness_scores = [0.5, 0.25]
+
+    elite = ga.select_elite(fitness_scores)
+
+    assert len(elite) == 1

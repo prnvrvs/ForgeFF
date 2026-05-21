@@ -158,7 +158,7 @@ class GeneticAlgorithm:
 
     def _get_indices_of_elites(self, fitness_scores: list[float]) -> list[int]:
         """Get indices of elites."""
-        elite_count = int(self.elitism_rate * len(fitness_scores))
+        elite_count = max(1, int(self.elitism_rate * len(fitness_scores)))
         return np.argsort(fitness_scores)[:elite_count]
 
     def select_elite(self, fitness_scores: list[float]) -> list[np.ndarray]:
@@ -210,7 +210,7 @@ class GeneticAlgorithm:
                 parent1, parent2 = self._choice(elite, size=2)
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
-            self.population = offspring
+            self.population = offspring[: self.population_size]
             if elite_callback:
                 elite_callback(gen, fitness_function(elite[0]))
         return best_solution
@@ -253,7 +253,7 @@ class GeneticAlgorithm:
                 parent1, parent2 = self._choice(self.population, size=2)
                 child1, child2 = self.crossover(parent1, parent2)
                 offspring.extend([self.mutate(child1), self.mutate(child2)])
-            self.population = offspring
+            self.population = offspring[: self.population_size]
             if elite_callback:
                 elite_callback(gen, fitness_function(elite[0]))
         return best_solution
