@@ -80,7 +80,17 @@ class Trainer:
     def update_mindist(self, images: list[Atoms]) -> None:
         """Update min_dist of the potential."""
         if hasattr(self.pot_data, "min_dist"):
-            self.pot_data.min_dist = np.min([_.get_all_distances(mic=True) for _ in images])
+            mindist = np.inf
+            for atoms in images:
+                if len(atoms) < 2:
+                    continue
+                distances = atoms.get_all_distances(mic=True)
+                np.fill_diagonal(distances, np.inf)
+                current = float(np.min(distances))
+                if np.isfinite(current):
+                    mindist = min(mindist, current)
+            if np.isfinite(mindist):
+                self.pot_data.min_dist = mindist
 
     def train(self, images: list[Atoms]) -> LossFunctionBase:
         """Train.

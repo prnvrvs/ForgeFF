@@ -21,7 +21,7 @@ def _convert_steps(steps: Sequence[str | dict[str, Any]]) -> list[dict[str, Any]
     for step in steps:
         tmp: dict[str, Any] = {"method": step} if isinstance(step, str) else step
         if tmp["method"].lower() in MINIMIZE_METHODS:
-            if "kwargs" not in step:
+            if "kwargs" not in tmp:
                 tmp["kwargs"] = {}
             tmp["kwargs"]["method"] = tmp["method"]
             tmp["method"] = "minimize"

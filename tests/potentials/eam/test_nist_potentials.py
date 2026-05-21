@@ -26,6 +26,33 @@ def test_nist_al99_eam_matches_ase() -> None:
     np.testing.assert_allclose(numba_res["stress"], ase_calc.results["stress"], rtol=1e-12, atol=1e-12)
 
 
+def test_nist_al99_eam_small_periodic_cell_matches_ase_numpy_and_numba() -> None:
+    atoms = Atoms("Al", positions=[[0.0, 0.0, 0.0]], cell=[3.3, 3.3, 3.3], pbc=True)
+    pot = "tests/data_path/nist/Al99.eam.alloy"
+
+    ase_calc = ASEEAM(potential=pot)
+    numpy_engine = NumpyEAMEngine(read_potential(pot))
+    numba_engine = NumbaEAMEngine(read_potential(pot))
+
+    ase_atoms = atoms.copy()
+    numpy_atoms = atoms.copy()
+    numba_atoms = atoms.copy()
+
+    ase_calc.calculate(ase_atoms, properties=["energy", "forces", "stress"], system_changes=all_changes)
+    numpy_res = numpy_engine.calculate(numpy_atoms)
+    numba_res = numba_engine.calculate(numba_atoms)
+
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
+    np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-12, atol=1e-12)
+
+    np.testing.assert_allclose(numba_res["energy"], ase_calc.results["energy"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numba_res["forces"], ase_calc.results["forces"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numba_res["stress"], ase_calc.results["stress"], rtol=1e-12, atol=1e-12)
+
+
 def test_nist_alcu_adp_matches_ase_for_pure_al() -> None:
     atoms = bulk("Al", "fcc", a=4.05) * (4, 4, 4)
     ase_calc = ASEEAM(potential="tests/data_path/nist/AlCu.adp")
@@ -33,6 +60,33 @@ def test_nist_alcu_adp_matches_ase_for_pure_al() -> None:
 
     ase_calc.calculate(atoms.copy(), properties=["energy", "forces", "stress"], system_changes=all_changes)
     numba_res = numba_engine.calculate(atoms.copy())
+
+    np.testing.assert_allclose(numba_res["energy"], ase_calc.results["energy"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numba_res["forces"], ase_calc.results["forces"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numba_res["stress"], ase_calc.results["stress"], rtol=1e-12, atol=1e-12)
+
+
+def test_nist_alcu_adp_small_periodic_cell_matches_ase_numpy_and_numba() -> None:
+    atoms = Atoms("Al", positions=[[0.0, 0.0, 0.0]], cell=[3.3, 3.3, 3.3], pbc=True)
+    pot = "tests/data_path/nist/AlCu.adp"
+
+    ase_calc = ASEEAM(potential=pot, form="adp")
+    numpy_engine = NumpyADPEngine(read_potential(pot, form="adp"))
+    numba_engine = NumbaADPEngine(read_potential(pot, form="adp"))
+
+    ase_atoms = atoms.copy()
+    numpy_atoms = atoms.copy()
+    numba_atoms = atoms.copy()
+
+    ase_calc.calculate(ase_atoms, properties=["energy", "forces", "stress"], system_changes=all_changes)
+    numpy_res = numpy_engine.calculate(numpy_atoms)
+    numba_res = numba_engine.calculate(numba_atoms)
+
+    _assert_site_energies_sum_to_total(numpy_res)
+    _assert_site_energies_sum_to_total(numba_res)
+    np.testing.assert_allclose(numpy_res["energy"], ase_calc.results["energy"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_res["forces"], ase_calc.results["forces"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(numpy_res["stress"], ase_calc.results["stress"], rtol=1e-12, atol=1e-12)
 
     np.testing.assert_allclose(numba_res["energy"], ase_calc.results["energy"], rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(numba_res["forces"], ase_calc.results["forces"], rtol=1e-12, atol=1e-12)

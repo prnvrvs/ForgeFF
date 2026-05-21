@@ -2,10 +2,11 @@
 
 import numba
 import numpy as np
+from types import SimpleNamespace
 from scipy.interpolate import CubicSpline
 
 from ase.calculators.calculator import Calculator, all_changes
-from ase.stress import full_3x3_to_voigt_6_stress
+from ase.stress import full_3x3_to_voigt_6_stress, voigt_6_to_full_3x3_stress
 from ase.neighborlist import neighbor_list
 from ase import Atoms
 from forgeff.potentials.eam.adp_data import ADPData
@@ -40,6 +41,8 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
         if i < j:
             site_energies[i] += 0.5 * pair_energy
             site_energies[j] += 0.5 * pair_energy
+        elif i == j:
+            site_energies[i] += 0.5 * pair_energy
         # EAM Density
         total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
         
@@ -149,7 +152,6 @@ def _calculate_adp(types, i_list, j_list, dist, rvec,
         f_adp_y = f_adp_y + term3_y + term4_y - term5_y
         f_adp_z = f_adp_z + term3_z + term4_z - term5_z
 
-        w = _spline_eval_2d(quadrupole_coeffs, r, r_start, dr, ti, tj)
         # Total force on atom i from this pair interaction
         fx = scale_eam * rvec[k, 0] / r + f_adp_x
         fy = scale_eam * rvec[k, 1] / r + f_adp_y
@@ -215,6 +217,68 @@ class NumbaADPEngine:
     def update(self, pot_data: ADPData):
         self.pot_data = pot_data
         self._build_splines()
+
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return numerical derivatives for energy, site energies, forces, and stress."""
+        orig_params = np.asarray(self.pot_data.parameters, dtype=float).copy()
+        nprm = orig_params.size
+        natoms = len(atoms)
+        d_energy = np.zeros(nprm, dtype=float)
+        d_energies = np.zeros((nprm, natoms), dtype=float)
+        d_forces = np.zeros((nprm, natoms, 3), dtype=float)
+        d_stress = np.zeros((nprm, 3, 3), dtype=float)
+
+        try:
+            for i in range(nprm):
+                p_plus = orig_params.copy()
+                p_plus[i] += delta
+                self.pot_data.parameters = p_plus
+                self.update(self.pot_data)
+                plus = self.calculate(atoms)
+
+                p_minus = orig_params.copy()
+                p_minus[i] -= delta
+                self.pot_data.parameters = p_minus
+                self.update(self.pot_data)
+                minus = self.calculate(atoms)
+
+                scale = 1.0 / (2.0 * delta)
+                d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_energies[i] = (plus["energies"] - minus["energies"]) * scale
+                d_forces[i] = (plus["forces"] - minus["forces"]) * scale
+                if "stress" in plus and "stress" in minus:
+                    plus_stress = np.asarray(plus["stress"], dtype=float)
+                    minus_stress = np.asarray(minus["stress"], dtype=float)
+                    if plus_stress.shape == (6,):
+                        plus_stress = voigt_6_to_full_3x3_stress(plus_stress)
+                    if minus_stress.shape == (6,):
+                        minus_stress = voigt_6_to_full_3x3_stress(minus_stress)
+                    d_stress[i] = (plus_stress - minus_stress) * scale
+        finally:
+            self.pot_data.parameters = orig_params
+            self.update(self.pot_data)
+
+        return d_energy, d_energies, d_forces, d_stress
+
+    def jac_energy(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for energy."""
+        jac, _, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_energies(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for site energies."""
+        _, jac, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_forces(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for forces."""
+        _, _, jac, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_stress(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for stress."""
+        _, _, _, jac = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
 
     def calculate(self, atoms: Atoms) -> dict:
         species = self.pot_data.species.tolist()

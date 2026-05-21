@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.neighborlist import neighbor_list
-from ase.stress import full_3x3_to_voigt_6_stress
+from ase.stress import full_3x3_to_voigt_6_stress, voigt_6_to_full_3x3_stress
 
 from forgeff.energy_offsets import apply_species_energy_offsets
 
@@ -278,6 +278,7 @@ class NumpyTersoffCalculator(Calculator):
             self.data = parameters
         else:
             self.data = TersoffData.from_parameter_dict(parameters, cutoff_skin=self.cutoff_skin)
+        self.engine = self
         self._init_cache()
 
     @classmethod
@@ -380,3 +381,64 @@ class NumpyTersoffCalculator(Calculator):
             self.results["stress"] = full_3x3_to_voigt_6_stress(virial / self.atoms.get_volume())
 
         self.results = apply_species_energy_offsets(self.results, self.atoms, self.data)
+
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return numerical derivatives of energy, site energies, forces, and stress."""
+        orig_params = np.asarray(self.data.parameters, dtype=float).copy()
+        nprm = orig_params.size
+        natoms = len(atoms)
+        d_energy = np.zeros(nprm, dtype=float)
+        d_energies = np.zeros((nprm, natoms), dtype=float)
+        d_forces = np.zeros((nprm, natoms, 3), dtype=float)
+        d_stress = np.zeros((nprm, 3, 3), dtype=float)
+
+        try:
+            for i in range(nprm):
+                p_plus = orig_params.copy()
+                p_plus[i] += delta
+                self.data.parameters = p_plus
+                self.update(self.data)
+                self.calculate(atoms)
+                plus = dict(self.results)
+
+                p_minus = orig_params.copy()
+                p_minus[i] -= delta
+                self.data.parameters = p_minus
+                self.update(self.data)
+                self.calculate(atoms)
+                minus = dict(self.results)
+
+                scale = 1.0 / (2.0 * delta)
+                d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_energies[i] = (plus["energies"] - minus["energies"]) * scale
+                d_forces[i] = (plus["forces"] - minus["forces"]) * scale
+                if "stress" in plus and "stress" in minus:
+                    plus_stress = np.asarray(plus["stress"], dtype=float)
+                    minus_stress = np.asarray(minus["stress"], dtype=float)
+                    if plus_stress.shape == (6,):
+                        plus_stress = voigt_6_to_full_3x3_stress(plus_stress)
+                    if minus_stress.shape == (6,):
+                        minus_stress = voigt_6_to_full_3x3_stress(minus_stress)
+                    d_stress[i] = (plus_stress - minus_stress) * scale
+        finally:
+            self.data.parameters = orig_params
+            self.update(self.data)
+
+        return d_energy, d_energies, d_forces, d_stress
+
+    def jac_energy(self, atoms: Atoms):
+        jac, _, _, _ = self._finite_difference_response(atoms)
+        return type("JacobianShim", (), {"parameters": jac})
+
+    def jac_energies(self, atoms: Atoms):
+        """Numerical Jacobian for site energies."""
+        _, jac, _, _ = self._finite_difference_response(atoms)
+        return type("JacobianShim", (), {"parameters": jac})
+
+    def jac_forces(self, atoms: Atoms):
+        _, _, jac, _ = self._finite_difference_response(atoms)
+        return type("JacobianShim", (), {"parameters": jac})
+
+    def jac_stress(self, atoms: Atoms):
+        _, _, _, jac = self._finite_difference_response(atoms)
+        return type("JacobianShim", (), {"parameters": jac})

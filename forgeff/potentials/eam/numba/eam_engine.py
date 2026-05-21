@@ -93,6 +93,8 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec,
         if i < j:
             site_energies[i] += 0.5 * pair_energy
             site_energies[j] += 0.5 * pair_energy
+        elif i == j:
+            site_energies[i] += 0.5 * pair_energy
         total_density[i] += _spline_eval_1d(dens_coeffs, r, r_start, dr, tj)
 
     pair_energy = 0.5 * pair_energy_sum
@@ -161,6 +163,8 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec,
         if i < j:
             site_energies[i] += 0.5 * pair_energy
             site_energies[j] += 0.5 * pair_energy
+        elif i == j:
+            site_energies[i] += 0.5 * pair_energy
         total_density[i] += _spline_eval_2d(dens_coeffs, r, r_start, dr, tj, ti)
 
     pair_energy = 0.5 * pair_energy_sum
@@ -245,17 +249,13 @@ class NumbaEAMEngine:
         self.eam_data = eam_data
         self._build_splines()
 
-    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Return numerical derivatives of energy, forces, and stress.
-
-        The EAM Numba engine still does not expose closed-form Jacobians for
-        forces or stress, so we keep the finite-difference fallback local to
-        the engine.
-        """
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return numerical derivatives of energy, site energies, forces, and stress."""
         orig_params = np.asarray(self.eam_data.parameters, dtype=float).copy()
         nprm = orig_params.size
         natoms = len(atoms)
         d_energy = np.zeros(nprm, dtype=float)
+        d_energies = np.zeros((nprm, natoms), dtype=float)
         d_forces = np.zeros((nprm, natoms, 3), dtype=float)
         d_stress = np.zeros((nprm, 3, 3), dtype=float)
 
@@ -275,6 +275,7 @@ class NumbaEAMEngine:
 
                 scale = 1.0 / (2.0 * delta)
                 d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_energies[i] = (plus["energies"] - minus["energies"]) * scale
                 d_forces[i] = (plus["forces"] - minus["forces"]) * scale
                 if "stress" in plus and "stress" in minus:
                     plus_stress = np.asarray(plus["stress"], dtype=float)
@@ -288,21 +289,26 @@ class NumbaEAMEngine:
             self.eam_data.parameters = orig_params
             self.update(self.eam_data)
 
-        return d_energy, d_forces, d_stress
+        return d_energy, d_energies, d_forces, d_stress
 
     def jac_energy(self, atoms: Atoms) -> SimpleNamespace:
         """Numerical Jacobian for energy."""
-        jac, _, _ = self._finite_difference_response(atoms)
+        jac, _, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_energies(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for site energies."""
+        _, jac, _, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def jac_forces(self, atoms: Atoms) -> SimpleNamespace:
         """Numerical Jacobian for forces."""
-        _, jac, _ = self._finite_difference_response(atoms)
+        _, _, jac, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def jac_stress(self, atoms: Atoms) -> SimpleNamespace:
         """Numerical Jacobian for stress."""
-        _, _, jac = self._finite_difference_response(atoms)
+        _, _, _, jac = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def calculate(self, atoms: Atoms) -> dict:

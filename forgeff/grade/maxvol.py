@@ -169,6 +169,8 @@ def _maxvol(
     in_selected[selected] = True
 
     c = _calc_c(matrix, selected)
+    nit = 0
+    cmax = np.nan
     for nit in range(maxiter):
         i, j = np.divmod(np.argmax(np.abs(c)), ncols)
         cmax = np.abs(c[i, j])
@@ -230,6 +232,7 @@ def _mlip(
     inv_submatrix = (1.0 / init_threshold) * np.eye(ncols)
 
     c = matrix @ inv_submatrix
+    nit = 0
     for nit in range(maxiter):
         i, j = np.divmod(np.argmax(np.abs(c)), ncols)
         cmax = np.abs(c[i, j])

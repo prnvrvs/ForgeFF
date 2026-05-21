@@ -38,7 +38,8 @@ class Randomizer(ParallelOptimizerBase):
     def _optimize(self, **kwargs: dict[str, Any]) -> npt.NDArray[np.float64]:
         parameters = self.loss.pot_data.parameters
         callback = Callback(self.loss)
-        rng: np.random.Generator = self.loss.setting["rng"]
+        seed = kwargs.get("seed", 42)
+        rng: np.random.Generator = kwargs.get("rng") or np.random.default_rng(seed)
 
         # Calculate basis functions of `loss.images`
         loss_value = self.rank0_loss(parameters)
@@ -51,8 +52,9 @@ class Randomizer(ParallelOptimizerBase):
         for key in self.optimized:
             lb = -5.0
             ub = +5.0
-            shape = pot_data[key].shape
-            pot_data[key] = rng.uniform(lb, ub, size=shape)
+            value = getattr(pot_data, key)
+            shape = np.asarray(value).shape
+            setattr(pot_data, key, rng.uniform(lb, ub, size=shape))
         # Update `parameters` by calling the property
         parameters = pot_data.parameters
 

@@ -115,6 +115,9 @@ def _calculate_eam_alloy(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coe
         half_pair = 0.5 * phi_vals[pair_mask]
         np.add.at(site_energies, i_list[pair_mask], half_pair)
         np.add.at(site_energies, j_list[pair_mask], half_pair)
+    self_mask = i_list == j_list
+    if np.any(self_mask):
+        np.add.at(site_energies, i_list[self_mask], 0.5 * phi_vals[self_mask])
 
     np.add.at(total_density, i_list, dens_vals)
 
@@ -166,6 +169,9 @@ def _calculate_eam_fs(types, i_list, j_list, dist, rvec, emb_coeffs, dens_coeffs
         half_pair = 0.5 * pair_energy_vals[pair_mask]
         np.add.at(site_energies, i_list[pair_mask], half_pair)
         np.add.at(site_energies, j_list[pair_mask], half_pair)
+    self_mask = i_list == j_list
+    if np.any(self_mask):
+        np.add.at(site_energies, i_list[self_mask], 0.5 * pair_energy_vals[self_mask])
     np.add.at(total_density, i_list, dens_vals)
 
     emb_all = _spline_eval_many(emb_coeffs, total_density, rho_start, drho)
@@ -230,11 +236,13 @@ class NumpyEAMEngine:
             indices[idx] = mapping[number]
         return indices
 
-    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _finite_difference_response(self, atoms: Atoms, delta: float = 1e-6) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return numerical derivatives of energy, site energies, forces, and stress."""
         orig_params = np.asarray(self.eam_data.parameters, dtype=float).copy()
         nprm = orig_params.size
         natoms = len(atoms)
         d_energy = np.zeros(nprm, dtype=float)
+        d_energies = np.zeros((nprm, natoms), dtype=float)
         d_forces = np.zeros((nprm, natoms, 3), dtype=float)
         d_stress = np.zeros((nprm, 3, 3), dtype=float)
 
@@ -254,6 +262,7 @@ class NumpyEAMEngine:
 
                 scale = 1.0 / (2.0 * delta)
                 d_energy[i] = (plus["energy"] - minus["energy"]) * scale
+                d_energies[i] = (plus["energies"] - minus["energies"]) * scale
                 d_forces[i] = (plus["forces"] - minus["forces"]) * scale
                 if "stress" in plus and "stress" in minus:
                     plus_stress = np.asarray(plus["stress"], dtype=float)
@@ -267,18 +276,23 @@ class NumpyEAMEngine:
             self.eam_data.parameters = orig_params
             self.update(self.eam_data)
 
-        return d_energy, d_forces, d_stress
+        return d_energy, d_energies, d_forces, d_stress
 
     def jac_energy(self, atoms: Atoms) -> SimpleNamespace:
-        jac, _, _ = self._finite_difference_response(atoms)
+        jac, _, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=jac)
+
+    def jac_energies(self, atoms: Atoms) -> SimpleNamespace:
+        """Numerical Jacobian for site energies."""
+        _, jac, _, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def jac_forces(self, atoms: Atoms) -> SimpleNamespace:
-        _, jac, _ = self._finite_difference_response(atoms)
+        _, _, jac, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def jac_stress(self, atoms: Atoms) -> SimpleNamespace:
-        _, _, jac = self._finite_difference_response(atoms)
+        _, _, _, jac = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=jac)
 
     def calculate(self, atoms: Atoms) -> dict:

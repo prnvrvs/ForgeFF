@@ -222,6 +222,22 @@ def test_ase_engine_adapter_handles_empty_atoms() -> None:
     assert result["forces"].shape == (0, 3)
 
 
+def test_ase_engine_adapter_rejects_site_energy_jacobians() -> None:
+    pot_data = ASEData(
+        engine="numpy",
+        calculator_kwargs={
+            "calculator": "LennardJones",
+            "epsilon": 1.0,
+            "sigma": 1.0,
+            "rc": 2.5,
+        },
+    )
+    engine = GenericASEEngine(pot_data)
+
+    with pytest.raises(NotImplementedError, match="site-energy Jacobians"):
+        engine.jac_energies(Atoms("Ar2", positions=[[0.0, 0.0, 0.0], [1.2, 0.0, 0.0]]))
+
+
 @pytest.mark.parametrize("engine_cls", [NumpySWEngine, NumbaSWEngine])
 def test_sw_engines_skip_stress_for_nonperiodic_zero_volume_cells(engine_cls) -> None:
     atoms = Atoms("Si", positions=[[0.0, 0.0, 0.0]])

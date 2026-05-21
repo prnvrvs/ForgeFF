@@ -126,12 +126,13 @@ class GenericASEEngine:
         self,
         atoms: Atoms,
         delta: float = 1e-6,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Return numerical derivatives for ASE calculators."""
         orig_params = np.asarray(self.ase_data.parameters, dtype=float).copy()
         nprm = orig_params.size
         natoms = len(atoms)
         d_energy = np.zeros(nprm, dtype=float)
+        d_energies = np.zeros((nprm, natoms), dtype=float)
         d_forces = np.zeros((nprm, natoms, 3), dtype=float)
         d_stress = np.zeros((nprm, 3, 3), dtype=float)
 
@@ -151,6 +152,7 @@ class GenericASEEngine:
 
                 scale = 1.0 / (2.0 * delta)
                 d_energy[idx] = (plus["energy"] - minus["energy"]) * scale
+                d_energies[idx] = (plus["energies"] - minus["energies"]) * scale
                 d_forces[idx] = (plus["forces"] - minus["forces"]) * scale
                 if plus.get("stress") is not None and minus.get("stress") is not None:
                     plus_stress = np.asarray(plus["stress"], dtype=float)
@@ -164,16 +166,28 @@ class GenericASEEngine:
             self.ase_data.parameters = orig_params
             self.update(self.ase_data)
 
-        return d_energy, d_forces, d_stress
+        return d_energy, d_energies, d_forces, d_stress
 
     def jac_energy(self, atoms: Atoms):
-        d_energy, _, _ = self._finite_difference_response(atoms)
+        d_energy, _, _, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=d_energy)
 
+    def jac_energies(self, atoms: Atoms):
+        """Site-energy Jacobians are not meaningful for generic ASE adapters.
+
+        The adapter only provides a uniform average per-atom energy for API
+        compatibility. That is not a physical site-energy decomposition, so
+        exposing a Jacobian here would mislead neighborhood grading.
+        """
+        raise NotImplementedError(
+            "GenericASEEngine does not provide site-energy Jacobians because its "
+            "'energies' output is only a uniform average, not a physical site-energy decomposition."
+        )
+
     def jac_forces(self, atoms: Atoms):
-        _, d_forces, _ = self._finite_difference_response(atoms)
+        _, _, d_forces, _ = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=d_forces)
 
     def jac_stress(self, atoms: Atoms):
-        _, _, d_stress = self._finite_difference_response(atoms)
+        _, _, _, d_stress = self._finite_difference_response(atoms)
         return SimpleNamespace(parameters=d_stress)

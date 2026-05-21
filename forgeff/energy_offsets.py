@@ -37,7 +37,10 @@ def apply_species_energy_offsets(
 
     adjusted = dict(results)
     adjusted["energy"] = float(adjusted["energy"]) + total
-    adjusted["free_energy"] = adjusted["energy"]
+    if "free_energy" in adjusted:
+        adjusted["free_energy"] = float(adjusted["free_energy"]) + total
+    else:
+        adjusted["free_energy"] = adjusted["energy"]
     if "energies" in adjusted:
         adjusted["energies"] = np.asarray(adjusted["energies"], dtype=float) + per_atom
     return adjusted
