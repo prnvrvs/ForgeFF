@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
+
 from .data import EAMData
 
 logger = logging.getLogger(__name__)
@@ -22,12 +23,59 @@ class ADPData(EAMData):
     quadrupole_values: npt.NDArray[np.float64] | None = None
     
     def __post_init__(self):
-        if "dipole_values" not in self.optimized:
+        if not self._uses_block_optimization() and "dipole_values" not in self.optimized:
             self.optimized.extend(["dipole_values", "quadrupole_values"])
+
+    def _species_pair_from_name(self, name: str) -> tuple[int, int]:
+        labels = self._species_labels()
+        suffix = name.split(".", 1)[1] if "." in name else name
+        normalized = "".join(ch for ch in suffix if ch.isalnum()).lower()
+        matches: list[tuple[int, int]] = []
+        for i, left in enumerate(labels):
+            for j, right in enumerate(labels):
+                if normalized == ("".join(ch for ch in left if ch.isalnum()).lower() + "".join(ch for ch in right if ch.isalnum()).lower()):
+                    matches.append((i, j))
+        if not matches:
+            raise KeyError(name)
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous ADP pair block name {name!r}.")
+        return matches[0]
+
+    def _adp_block_values(self, name: str) -> np.ndarray:
+        if name.startswith("dipole."):
+            i, j = self._species_pair_from_name(name)
+            return np.asarray(self.dipole_values[i, j], dtype=float).reshape(-1)
+        if name.startswith("quadrupole."):
+            i, j = self._species_pair_from_name(name)
+            return np.asarray(self.quadrupole_values[i, j], dtype=float).reshape(-1)
+        return super()._block_values(name)
+
+    def _adp_set_block_values(self, name: str, values: npt.ArrayLike) -> None:
+        if name.startswith("dipole."):
+            i, j = self._species_pair_from_name(name)
+            arr = np.asarray(values, dtype=float).reshape(-1)
+            self.dipole_values[i, j] = arr
+            self.dipole_values[j, i] = arr
+            return
+        if name.startswith("quadrupole."):
+            i, j = self._species_pair_from_name(name)
+            arr = np.asarray(values, dtype=float).reshape(-1)
+            self.quadrupole_values[i, j] = arr
+            self.quadrupole_values[j, i] = arr
+            return
+        super()._set_block_values(name, np.asarray(values, dtype=float))
 
     @property
     def parameters(self) -> np.ndarray:
         """Serialized parameters for the optimizer."""
+        if self._uses_block_optimization():
+            return (
+                np.hstack([self._adp_block_values(name) for name in self.optimized])
+                if self.optimized
+                else np.array([], dtype=float)
+            )
+        if not self.optimized:
+            return np.array([], dtype=float)
         tmp = [super().parameters]
         if "dipole_values" in self.optimized:
             tmp.append(self.dipole_values.flat)
@@ -39,6 +87,17 @@ class ADPData(EAMData):
     def parameters(self, parameters: npt.ArrayLike) -> None:
         """Update values from serialized parameters."""
         params = np.asanyarray(parameters)
+        if self._uses_block_optimization():
+            n = 0
+            for name in self.optimized:
+                size = self._adp_block_values(name).size
+                self._adp_set_block_values(name, params[n : n + size])
+                n += size
+            return
+        if not self.optimized:
+            if params.size:
+                raise ValueError("No ADP parameters are marked for optimization.")
+            return
         spc = self.species_count
         nr = len(self.r_grid) if self.r_grid is not None else 0
         
@@ -60,6 +119,10 @@ class ADPData(EAMData):
 
     @property
     def number_of_parameters_optimized(self) -> int:
+        if self._uses_block_optimization():
+            return int(sum(self._adp_block_values(name).size for name in self.optimized))
+        if not self.optimized:
+            return 0
         n = super().number_of_parameters_optimized
         spc = self.species_count
         nr = len(self.r_grid) if self.r_grid is not None else 0
@@ -71,6 +134,15 @@ class ADPData(EAMData):
 
     def initialize(self, rng: np.random.Generator) -> None:
         """Random initialization of potential values."""
+        if self._uses_block_optimization():
+            if self.number_of_parameters_optimized == 0:
+                return
+            if np.allclose(self.parameters, 0.0):
+                values = rng.uniform(-0.1, 0.1, self.number_of_parameters_optimized)
+                self.parameters = values
+            return
+        if not self.optimized:
+            return
         super().initialize(rng)
         spc = self.species_count
         nr = len(self.r_grid)

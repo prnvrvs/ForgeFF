@@ -236,6 +236,10 @@ Output:
 EAM examples
 ------------
 
+The tabulated EAM examples follow the same block-level freeze convention as
+the TOML guide: set ``optimize = false`` on any ``pair``, ``density``, or
+``embedding`` block to keep it fixed during fitting.
+
 Alloy, unary
 ~~~~~~~~~~~~
 
@@ -384,6 +388,10 @@ Output:
 
 ADP examples
 ------------
+
+The ADP example uses the same block-level freeze convention as tabulated EAM,
+and also supports independent control of the ``dipole`` and ``quadrupole``
+blocks.
 
 Binary
 ~~~~~~

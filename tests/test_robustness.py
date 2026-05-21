@@ -13,6 +13,8 @@ from forgeff.loss import ErrorPrinter, LossFunctionStress
 from forgeff.loss import LossSetting
 from forgeff.loss import _resolve_species_energy_offsets
 from forgeff.potentials.sw.data import SWData
+from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.eam.adp_data import ADPData
 
 
 def test_empty_atoms_stress_loss_skips_non_3d_cells() -> None:
@@ -80,3 +82,51 @@ def test_species_energy_offsets_roundtrip_through_npy(tmp_path) -> None:
 
     assert isinstance(loaded, SWData)
     assert loaded.species_energy_offsets == {"Si": -1.5}
+
+
+def test_manual_block_freezing_works_in_python_mode_for_eam() -> None:
+    data = EAMData(
+        form="alloy",
+        species_count=2,
+        r_grid=np.array([0.1, 0.2]),
+        rho_grid=np.array([0.0, 1.0]),
+        phi_values=np.zeros((2, 2, 2)),
+        rho_values=np.zeros((2, 2, 2)),
+        emb_values=np.zeros((2, 2)),
+        optimized=["pair.AlCu", "density.Cu", "embedding.Cu"],
+    )
+    data.species = np.array([13, 29], dtype=np.int32)
+
+    params = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=float)
+    data.parameters = params
+
+    np.testing.assert_allclose(data.phi_values[0, 0], [0.0, 0.0])
+    np.testing.assert_allclose(data.phi_values[0, 1], [1.0, 2.0])
+    np.testing.assert_allclose(data.rho_values[:, 1], [[3.0, 4.0], [3.0, 4.0]])
+    np.testing.assert_allclose(data.emb_values[1], [5.0, 6.0])
+    assert data.number_of_parameters_optimized == 6
+
+
+def test_manual_block_freezing_works_in_python_mode_for_adp() -> None:
+    data = ADPData(
+        form="alloy",
+        species_count=2,
+        r_grid=np.array([0.1, 0.2]),
+        rho_grid=np.array([0.0, 1.0]),
+        phi_values=np.zeros((2, 2, 2)),
+        rho_values=np.zeros((2, 2, 2)),
+        emb_values=np.zeros((2, 2)),
+        dipole_values=np.zeros((2, 2, 2)),
+        quadrupole_values=np.zeros((2, 2, 2)),
+        optimized=["pair.AlCu", "dipole.AlCu", "quadrupole.CuCu"],
+    )
+    data.species = np.array([13, 29], dtype=np.int32)
+
+    params = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=float)
+    data.parameters = params
+
+    np.testing.assert_allclose(data.phi_values[0, 0], [0.0, 0.0])
+    np.testing.assert_allclose(data.phi_values[0, 1], [1.0, 2.0])
+    np.testing.assert_allclose(data.dipole_values[0, 1], [3.0, 4.0])
+    np.testing.assert_allclose(data.quadrupole_values[1, 1], [5.0, 6.0])
+    assert data.number_of_parameters_optimized == 6

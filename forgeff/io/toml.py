@@ -288,7 +288,11 @@ def _grid_from(data: dict[str, Any], potential: dict[str, Any], name: str) -> np
     return arr
 
 
-def _term_key_pairs(species_count: int, form: str) -> list[tuple[int, int]]:
+def _pair_key_pairs(species_count: int) -> list[tuple[int, int]]:
+    return [(i, j) for i in range(species_count) for j in range(i, species_count)]
+
+
+def _density_key_pairs(species_count: int, form: str) -> list[tuple[int, int]]:
     if form == "alloy":
         return [(i, i) for i in range(species_count)]
     return [(i, j) for i in range(species_count) for j in range(species_count)]
@@ -303,6 +307,12 @@ def _check_coverage(
     missing = [pair for pair in expected if pair not in seen]
     if missing:
         raise ValueError(f"TOML potential is missing required {label} terms for species pairs: {missing}")
+
+
+def _term_optimize_flag(term: dict[str, Any]) -> bool:
+    if "optimize" not in term:
+        return True
+    return bool(term["optimize"])
 
 
 def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEData:
@@ -540,7 +550,7 @@ def _read_multispecies_pair_toml(data: dict[str, Any], potential: dict[str, Any]
         seen_pairs.add((i, j))
         seen_pairs.add((j, i))
 
-    _check_coverage(seen_pairs, _term_key_pairs(len(species), str(shared_form or "alloy")), label="pair")
+    _check_coverage(seen_pairs, _pair_key_pairs(len(species)), label="pair")
     return ase_data
 
 
@@ -571,6 +581,8 @@ def _populate_eam_arrays(
     embedding_terms = data.get("embedding", {})
     dipole_terms = data.get("dipole", {})
     quadrupole_terms = data.get("quadrupole", {})
+    optimized_blocks: list[str] = []
+    block_mode = False
 
     seen_pairs: set[tuple[int, int]] = set()
     for name, term in pair_terms.items():
@@ -586,8 +598,12 @@ def _populate_eam_arrays(
         phi[j, i] = values
         seen_pairs.add((i, j))
         seen_pairs.add((j, i))
+        if not _term_optimize_flag(term):
+            block_mode = True
+        if _term_optimize_flag(term):
+            optimized_blocks.append(f"pair.{labels[min(i, j)]}{labels[max(i, j)]}")
 
-    _check_coverage(seen_pairs, _term_key_pairs(spc, form), label="pair")
+    _check_coverage(seen_pairs, _pair_key_pairs(spc), label="pair")
 
     seen_density: set[tuple[int, int]] = set()
     if form == "alloy":
@@ -600,6 +616,10 @@ def _populate_eam_arrays(
             values = _term_array(term, nr) if "values" in term else _analytic_term_array(term, r_grid)
             rho[:, species_idx, :] = values
             seen_density.add((species_idx, species_idx))
+            if not _term_optimize_flag(term):
+                block_mode = True
+            if _term_optimize_flag(term):
+                optimized_blocks.append(f"density.{labels[species_idx]}")
     else:
         for name, term in density_terms.items():
             term = dict(term)
@@ -613,8 +633,12 @@ def _populate_eam_arrays(
             values = _term_array(term, nr) if "values" in term else _analytic_term_array(term, r_grid)
             rho[i, j] = values
             seen_density.add((i, j))
+            if not _term_optimize_flag(term):
+                block_mode = True
+            if _term_optimize_flag(term):
+                optimized_blocks.append(f"density.{labels[i]}{labels[j]}")
 
-    _check_coverage(seen_density, _term_key_pairs(spc, form), label="density")
+    _check_coverage(seen_density, _density_key_pairs(spc, form), label="density")
 
     seen_embedding: set[int] = set()
     for name, term in embedding_terms.items():
@@ -626,6 +650,10 @@ def _populate_eam_arrays(
         values = _term_array(term, nrho) if "values" in term else _analytic_term_array(term, rho_grid)
         emb[species_idx] = values
         seen_embedding.add(species_idx)
+        if not block_mode:
+            block_mode = not _term_optimize_flag(term)
+        if _term_optimize_flag(term):
+            optimized_blocks.append(f"embedding.{labels[species_idx]}")
 
     missing_embedding = [idx for idx in range(spc) if idx not in seen_embedding]
     if missing_embedding:
@@ -659,7 +687,11 @@ def _populate_eam_arrays(
             dipole[j, i] = values
             seen_dipole.add((i, j))
             seen_dipole.add((j, i))
-        _check_coverage(seen_dipole, _term_key_pairs(spc, form), label="dipole")
+            if not _term_optimize_flag(term):
+                block_mode = True
+            if _term_optimize_flag(term):
+                optimized_blocks.append(f"dipole.{labels[min(i, j)]}{labels[max(i, j)]}")
+        _check_coverage(seen_dipole, _pair_key_pairs(spc), label="dipole")
 
         seen_quadrupole: set[tuple[int, int]] = set()
         for name, term in quadrupole_terms.items():
@@ -676,7 +708,11 @@ def _populate_eam_arrays(
             quadrupole[j, i] = values
             seen_quadrupole.add((i, j))
             seen_quadrupole.add((j, i))
-        _check_coverage(seen_quadrupole, _term_key_pairs(spc, form), label="quadrupole")
+            if not _term_optimize_flag(term):
+                block_mode = True
+            if _term_optimize_flag(term):
+                optimized_blocks.append(f"quadrupole.{labels[min(i, j)]}{labels[max(i, j)]}")
+        _check_coverage(seen_quadrupole, _pair_key_pairs(spc), label="quadrupole")
         pot = ADPData(
             potential_name=str(potential.get("potential_name", "")),
             form=form,
@@ -690,6 +726,8 @@ def _populate_eam_arrays(
         )
 
     pot.species = np.asarray(species, dtype=np.int32)
+    if block_mode:
+        pot.optimized = optimized_blocks
     return pot
 
 

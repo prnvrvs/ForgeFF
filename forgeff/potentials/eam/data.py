@@ -6,11 +6,17 @@ from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
+from ase.data import chemical_symbols
 
 logger = logging.getLogger(__name__)
 
 def _default_factory_int() -> npt.NDArray[np.int32]:
     return np.array([], dtype=np.int32)
+
+
+def _species_label(number: int) -> str:
+    return str(chemical_symbols[int(number)])
+
 
 @dataclass
 class EAMData:
@@ -53,9 +59,107 @@ class EAMData:
         self._species = np.array(species, dtype=np.int32)
         self.species_count = self._species.size
 
+    def _species_labels(self) -> list[str]:
+        return [_species_label(number) for number in np.asarray(self.species, dtype=int).tolist()]
+
+    def _uses_block_optimization(self) -> bool:
+        return any("." in name for name in self.optimized)
+
+    def _block_maps(self) -> dict[str, tuple[str, tuple[int, ...]]]:
+        labels = self._species_labels()
+        blocks: dict[str, tuple[str, tuple[int, ...]]] = {}
+        for i, left in enumerate(labels):
+            for j, right in enumerate(labels):
+                if i <= j:
+                    blocks[f"pair.{left}{right}"] = ("pair", (i, j))
+        if self.form == "fs":
+            for i, left in enumerate(labels):
+                for j, right in enumerate(labels):
+                    blocks[f"density.{left}{right}"] = ("density", (i, j))
+        else:
+            for i, left in enumerate(labels):
+                blocks[f"density.{left}"] = ("density", (i,))
+        for i, left in enumerate(labels):
+            blocks[f"embedding.{left}"] = ("embedding", (i,))
+        return blocks
+
+    def _block_values(self, name: str) -> np.ndarray:
+        blocks = self._block_maps()
+        if name in blocks:
+            kind, index = blocks[name]
+            if kind == "pair":
+                i, j = index
+                return np.asarray(self.phi_values[i, j], dtype=float).reshape(-1)
+            if kind == "density":
+                if self.form == "fs":
+                    i, j = index
+                    return np.asarray(self.rho_values[i, j], dtype=float).reshape(-1)
+                (j,) = index
+                return np.asarray(self.rho_values[0, j], dtype=float).reshape(-1)
+            if kind == "embedding":
+                (i,) = index
+                return np.asarray(self.emb_values[i], dtype=float).reshape(-1)
+
+        legacy = {
+            "phi_values": np.asarray(self.phi_values, dtype=float).reshape(-1),
+            "rho_values": (
+                np.asarray(self.rho_values, dtype=float).reshape(-1)
+                if self.form == "fs"
+                else np.asarray(self.rho_values.diagonal(axis1=0, axis2=1).T, dtype=float).reshape(-1)
+            ),
+            "emb_values": np.asarray(self.emb_values, dtype=float).reshape(-1),
+        }
+        if name not in legacy:
+            raise KeyError(name)
+        return legacy[name]
+
+    def _set_block_values(self, name: str, values: np.ndarray) -> None:
+        blocks = self._block_maps()
+        if name in blocks:
+            kind, index = blocks[name]
+            if kind == "pair":
+                i, j = index
+                self.phi_values[i, j] = values.reshape(-1)
+                self.phi_values[j, i] = self.phi_values[i, j]
+                return
+            if kind == "density":
+                if self.form == "fs":
+                    i, j = index
+                    self.rho_values[i, j] = values.reshape(-1)
+                    return
+                (j,) = index
+                self.rho_values[:, j, :] = values.reshape(-1)
+                return
+            if kind == "embedding":
+                (i,) = index
+                self.emb_values[i] = values.reshape(-1)
+                return
+
+        if name == "phi_values":
+            arr = values.reshape(self.phi_values.shape)
+            self.phi_values = 0.5 * (arr + arr.transpose(1, 0, 2))
+            return
+        if name == "rho_values":
+            if self.form == "fs":
+                self.rho_values = values.reshape(self.rho_values.shape)
+            else:
+                curves = values.reshape(self.species_count, -1)
+                self.rho_values = np.zeros_like(self.rho_values)
+                for idx in range(self.species_count):
+                    self.rho_values[:, idx, :] = curves[idx]
+            return
+        if name == "emb_values":
+            self.emb_values = values.reshape(self.emb_values.shape)
+            return
+        raise KeyError(name)
+
     @property
     def parameters(self) -> np.ndarray:
         """Serialized parameters for the optimizer."""
+        if self._uses_block_optimization():
+            return np.hstack([self._block_values(name) for name in self.optimized]) if self.optimized else np.array([], dtype=float)
+        if not self.optimized:
+            return np.array([], dtype=float)
         tmp = []
         if "phi_values" in self.optimized:
             tmp.append(self.phi_values.flat)
@@ -72,6 +176,17 @@ class EAMData:
     def parameters(self, parameters: npt.ArrayLike) -> None:
         """Update values from serialized parameters."""
         params = np.asanyarray(parameters)
+        if self._uses_block_optimization():
+            n = 0
+            for name in self.optimized:
+                size = self._block_values(name).size
+                self._set_block_values(name, params[n : n + size])
+                n += size
+            return
+        if not self.optimized:
+            if params.size:
+                raise ValueError("No EAM parameters are marked for optimization.")
+            return
         spc = self.species_count
         nr = len(self.r_grid) if self.r_grid is not None else 0
         nrho = len(self.rho_grid) if self.rho_grid is not None else 0
@@ -100,6 +215,10 @@ class EAMData:
 
     @property
     def number_of_parameters_optimized(self) -> int:
+        if self._uses_block_optimization():
+            return int(sum(self._block_values(name).size for name in self.optimized))
+        if not self.optimized:
+            return 0
         spc = self.species_count
         nr = len(self.r_grid) if self.r_grid is not None else 0
         nrho = len(self.rho_grid) if self.rho_grid is not None else 0
@@ -121,6 +240,15 @@ class EAMData:
 
     def initialize(self, rng: np.random.Generator) -> None:
         """Random initialization of potential values."""
+        if self._uses_block_optimization():
+            if self.number_of_parameters_optimized == 0:
+                return
+            if np.allclose(self.parameters, 0.0):
+                values = rng.uniform(-0.1, 0.1, self.number_of_parameters_optimized)
+                self.parameters = values
+            return
+        if not self.optimized:
+            return
         spc = self.species_count
         nr = len(self.r_grid)
         nrho = len(self.rho_grid)

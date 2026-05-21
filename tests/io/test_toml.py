@@ -470,6 +470,66 @@ values = [2.3, 2.4, 2.5]
     np.testing.assert_allclose(data.rho_values[:, 1, :], [[1.3, 1.4, 1.5], [1.3, 1.4, 1.5]])
 
 
+def test_read_tabulated_eam_alloy_partial_optimization_flags(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "eam_alloy_partial.toml",
+        """
+[potential]
+family = "eam"
+form = "alloy"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = [0.1, 0.2]
+rho = [0.0, 1.0]
+
+[pair.AlAl]
+values = [0.1, 0.2]
+optimize = false
+
+[pair.AlCu]
+values = [0.3, 0.4]
+
+[pair.CuCu]
+values = [0.5, 0.6]
+
+[density.Al]
+values = [1.0, 1.1]
+optimize = false
+
+[density.Cu]
+values = [1.2, 1.3]
+
+[embedding.Al]
+values = [2.0, 2.1]
+optimize = false
+
+[embedding.Cu]
+values = [2.2, 2.3]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, EAMData)
+    assert data.optimized == ["pair.AlCu", "pair.CuCu", "density.Cu", "embedding.Cu"]
+    assert data.number_of_parameters_optimized == 8
+
+    frozen_pair = data.phi_values[0, 0].copy()
+    frozen_density = data.rho_values[:, 0].copy()
+    frozen_embedding = data.emb_values[0].copy()
+
+    data.parameters = np.arange(1.0, data.number_of_parameters_optimized + 1.0, dtype=float)
+
+    np.testing.assert_allclose(data.phi_values[0, 0], frozen_pair)
+    np.testing.assert_allclose(data.rho_values[:, 0], frozen_density)
+    np.testing.assert_allclose(data.emb_values[0], frozen_embedding)
+    np.testing.assert_allclose(data.phi_values[0, 1], [1.0, 2.0])
+    np.testing.assert_allclose(data.rho_values[:, 1], [[5.0, 6.0], [5.0, 6.0]])
+    np.testing.assert_allclose(data.emb_values[1], [7.0, 8.0])
+
+
 def test_read_tabulated_fs_toml(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "fs.toml",
@@ -519,6 +579,96 @@ values = [2.3, 2.4, 2.5]
     assert data.form == "fs"
     assert data.engine == "numba"
     np.testing.assert_allclose(data.rho_values[0, 1], [1.3, 1.4, 1.5])
+
+
+def test_read_tabulated_adp_partial_optimization_flags(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path / "adp_partial.toml",
+        """
+[potential]
+family = "adp"
+form = "alloy"
+
+[species]
+order = ["Al", "Cu"]
+
+[grids]
+r = [0.1, 0.2]
+rho = [0.0, 1.0]
+
+[pair.AlAl]
+values = [0.1, 0.2]
+optimize = false
+
+[pair.AlCu]
+values = [0.3, 0.4]
+
+[pair.CuCu]
+values = [0.5, 0.6]
+
+[density.Al]
+values = [1.0, 1.1]
+optimize = false
+
+[density.Cu]
+values = [1.2, 1.3]
+
+[embedding.Al]
+values = [2.0, 2.1]
+optimize = false
+
+[embedding.Cu]
+values = [2.2, 2.3]
+
+[dipole.AlAl]
+values = [3.0, 3.1]
+optimize = false
+
+[dipole.AlCu]
+values = [3.2, 3.3]
+
+[dipole.CuCu]
+values = [3.4, 3.5]
+
+[quadrupole.AlAl]
+values = [4.0, 4.1]
+optimize = false
+
+[quadrupole.AlCu]
+values = [4.2, 4.3]
+
+[quadrupole.CuCu]
+values = [4.4, 4.5]
+""".lstrip(),
+    )
+
+    data = read_potential(str(path))
+    assert isinstance(data, ADPData)
+    assert data.optimized == [
+        "pair.AlCu",
+        "pair.CuCu",
+        "density.Cu",
+        "embedding.Cu",
+        "dipole.AlCu",
+        "dipole.CuCu",
+        "quadrupole.AlCu",
+        "quadrupole.CuCu",
+    ]
+    assert data.number_of_parameters_optimized == 16
+
+    frozen_pair = data.phi_values[0, 0].copy()
+    frozen_density = data.rho_values[:, 0].copy()
+    frozen_embedding = data.emb_values[0].copy()
+    frozen_dipole = data.dipole_values[0, 0].copy()
+    frozen_quadrupole = data.quadrupole_values[0, 0].copy()
+
+    data.parameters = np.arange(1.0, data.number_of_parameters_optimized + 1.0, dtype=float)
+
+    np.testing.assert_allclose(data.phi_values[0, 0], frozen_pair)
+    np.testing.assert_allclose(data.rho_values[:, 0], frozen_density)
+    np.testing.assert_allclose(data.emb_values[0], frozen_embedding)
+    np.testing.assert_allclose(data.dipole_values[0, 0], frozen_dipole)
+    np.testing.assert_allclose(data.quadrupole_values[0, 0], frozen_quadrupole)
 
 
 def test_eam_fs_initialize_preserves_asymmetry() -> None:

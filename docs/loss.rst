@@ -80,3 +80,7 @@ Use ``species_energy_offset_mode = "regression"`` if you want ForgeFF to fit
 the offsets from the dataset composition and total energies. The fitted
 offsets are added to calculator predictions so the loss, RMSE, and reported
 energies use the same absolute-energy convention.
+
+Partial parameter freezing for tabulated EAM and ADP fits is controlled by
+``optimize = false`` on a block in TOML, or by setting ``pot.optimized`` in
+Python to the blocks you want to keep trainable.

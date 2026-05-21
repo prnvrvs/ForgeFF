@@ -108,6 +108,10 @@ TOML first:
 EAM alloy
 ^^^^^^^^^
 
+Tabulated EAM fits can freeze individual pair, density, or embedding blocks by
+setting ``optimize = false`` in TOML, or by selecting the block names in
+``pot.optimized`` when using the Python API.
+
 .. raw:: html
 
    <span class="ff-engine-label ff-engine-label--matscipy">ASE</span>
@@ -192,6 +196,10 @@ EAM alloy
 
 ADP
 ^^^
+
+Tabulated ADP fits use the same freeze convention as EAM, with the additional
+``dipole`` and ``quadrupole`` blocks available to freeze or optimize
+independently.
 
 .. raw:: html
 

@@ -79,6 +79,11 @@ The general structure is:
   ``[dipole.*]``, and ``[quadrupole.*]``
 - ``[parameters]``: optional container for analytical starting values
 
+Tabulated EAM and ADP term blocks also accept ``optimize = false`` to freeze
+that block during fitting. By default, blocks are optimized. The same freeze
+logic is available in Python by setting ``pot.optimized`` to the block names
+you want to update.
+
 Field guide
 -----------
 
