@@ -86,6 +86,8 @@ TOML first:
     atoms = bulk("Al", "fcc", a=4.05)
     atoms.calc = make_calculator(pot, engine="numpy")
 
+Output:
+
 .. code-block:: text
 
     energy = -3.114291273940021
@@ -105,6 +107,8 @@ TOML first:
     pot = read_potential("examples/toml/pairwise/morse/unary/initial.toml")
     atoms = bulk("Al", "fcc", a=4.05)
     atoms.calc = make_calculator(pot, engine="numba")
+
+Output:
 
 .. code-block:: text
 
@@ -139,6 +143,8 @@ setting ``optimize = false`` in TOML, or by selecting the block names in
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = EAM(potential="tests/data_path/nist/FeNiCrCoCu_with_ZBL.eam.alloy")
 
+Output:
+
 .. code-block:: text
 
     energy = -221.5222074023863
@@ -167,6 +173,8 @@ setting ``optimize = false`` in TOML, or by selecting the block names in
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = make_calculator(pot, engine="numpy")
 
+Output:
+
 .. code-block:: text
 
     energy = -221.52220740238633
@@ -194,6 +202,8 @@ setting ``optimize = false`` in TOML, or by selecting the block names in
     atoms.numbers = numbers
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = make_calculator(pot, engine="numba")
+
+Output:
 
 .. code-block:: text
 
@@ -223,6 +233,8 @@ independently.
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = EAM(potential="tests/data_path/nist/AlCu.adp", form="adp")
 
+Output:
+
 .. code-block:: text
 
     energy = -26.876415872339763
@@ -246,6 +258,8 @@ independently.
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = make_calculator(pot, engine="numpy")
 
+Output:
+
 .. code-block:: text
 
     energy = -26.876415872339756
@@ -268,6 +282,8 @@ independently.
     rng = np.random.default_rng(11)
     atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
     atoms.calc = make_calculator(pot, engine="numba")
+
+Output:
 
 .. code-block:: text
 
@@ -321,6 +337,8 @@ Stillinger-Weber
     )
     atoms.calc = calc
 
+Output:
+
 .. code-block:: text
 
     energy = -69.38557207743135
@@ -351,6 +369,8 @@ Stillinger-Weber
         gamma=1.2,
     )
     atoms.calc = make_calculator(pot, engine="numpy")
+
+Output:
 
 .. code-block:: text
 
@@ -383,6 +403,8 @@ Stillinger-Weber
     )
     atoms.calc = make_calculator(pot, engine="numba")
 
+Output:
+
 .. code-block:: text
 
     energy = -69.38557207743135
@@ -405,6 +427,8 @@ Example
     print("energy =", atoms.get_potential_energy())
     print("forces shape =", atoms.get_forces().shape)
     print("stress shape =", atoms.get_stress().shape)
+
+Output:
 
 .. code-block:: text
 

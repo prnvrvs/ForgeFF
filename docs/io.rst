@@ -15,7 +15,8 @@ ForgeFF can also read and write potfit-style force configurations with
 
 - ``.cfg``: MLIP-style atomic configurations
 - ``.force`` / ``.potfit``: potfit-style force configurations
-- ``.toml``: ForgeFF potential definitions for analytical pair, EAM, and ADP forms
+- ``.toml``: ForgeFF potential definitions for analytical pair, EAM, ADP, SW, and Tersoff forms
+- ``.tersoff``: LAMMPS-style Tersoff potential files
 
 ``.cfg``
 --------
@@ -42,6 +43,9 @@ ForgeFF also supports TOML-defined potentials through :func:`forgeff.io.read_pot
 The TOML format is the main user-facing format for ForgeFF potentials and
 training workflows. The full TOML specification is documented in
 :ref:`toml-spec`.
+
+ForgeFF also reads and writes LAMMPS-style ``.tersoff`` files for the standard
+Tersoff family through the same IO layer.
 
 Implementation
 ~~~~~~~~~~~~~~

@@ -9,19 +9,15 @@ file that ForgeFF can read.
 Usage
 -----
 
-.. container:: ff-cli-callout
+.. code-block:: bash
 
-   .. code-block:: bash
-
-      forgeff error final.npy examples/toml/data/unary/training.cfg
+   forgeff error final.npy examples/toml/data/unary/training.cfg
 
 You can also point it at a TOML potential:
 
-.. container:: ff-cli-callout
+.. code-block:: bash
 
-   .. code-block:: bash
-
-      forgeff error initial.toml test.traj
+   forgeff error initial.toml test.traj
 
 Options
 -------
@@ -44,13 +40,8 @@ The command prints a compact error table with:
 - force-component error
 - stress-component error
 
-For example, after training a potential you can run:
-
-.. container:: ff-cli-callout
-
-   .. code-block:: bash
-
-      forgeff error final.npy examples/toml/data/unary/training.cfg
+For example, after training a potential you can run ``forgeff error
+final.npy examples/toml/data/unary/training.cfg``.
 
 See also
 --------

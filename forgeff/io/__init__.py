@@ -10,7 +10,7 @@ from ase import Atoms
 from ase.io.formats import parse_filename
 
 from forgeff.io.toml import read_potential_toml
-from forgeff.io.lammps import write_lammps_potential
+from forgeff.io.lammps import read_lammps_tersoff_potential, write_lammps_potential
 from forgeff.io.potfit import read_force, write_force
 from forgeff.io.nist import read_nist_potential
 from forgeff.io.mlip.cfg import read_cfg, write_cfg
@@ -111,6 +111,9 @@ def read_potential(filename: str, form: str | None = None):
         or filename.endswith(".txt")
     ):
         return read_nist_potential(filename, form=form)
+
+    if filename.endswith(".tersoff"):
+        return read_lammps_tersoff_potential(filename)
 
     if filename.endswith(".npy"):
         data = np.load(filename, allow_pickle=True).item()

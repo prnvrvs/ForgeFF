@@ -234,6 +234,97 @@ layout:
 This matches the potfit-style multispecies organization used by the parser and
 the example templates.
 
+Tersoff
+-------
+
+Tersoff is another three-body potential, but it uses a bond-order form rather
+than the explicit pair-plus-lambda layout of Stillinger-Weber. In the common
+Tersoff form, the total energy is written as:
+
+.. math::
+
+    E = \frac{1}{2} \sum_{i \ne j} f_C(r_{ij})
+        \left[f_R(r_{ij}) + b_{ij} f_A(r_{ij})\right]
+
+where:
+
+- :math:`f_C(r)` is a cutoff function
+- :math:`f_R(r)` is the repulsive pair term
+- :math:`f_A(r)` is the attractive pair term
+- :math:`b_{ij}` is the bond-order factor that depends on the local
+  environment around atoms :math:`i` and :math:`j`
+
+A standard bond-order expression is:
+
+.. math::
+
+    b_{ij} = \left(1 + \beta^n \, \zeta_{ij}^n\right)^{-1/(2n)}
+
+with the local environment term
+
+.. math::
+
+    \zeta_{ij} = \sum_{k \ne i,j} f_C(r_{ik})\, g(\theta_{ijk})\,
+    \exp\!\left[\lambda^m (r_{ij} - r_{ik})^m\right]
+
+For the current ForgeFF Tersoff parameter layout, each ordered species triple
+stores 14 values in this order:
+
+1. ``m``
+2. ``gamma``
+3. ``lambda3``
+4. ``c``
+5. ``d``
+6. ``h``
+7. ``n``
+8. ``beta``
+9. ``lambda2``
+10. ``B``
+11. ``R``
+12. ``D``
+13. ``lambda1``
+14. ``A``
+
+The pair functions are written in the standard Tersoff form
+
+.. math::
+
+    f_R(r) = A \exp(-\lambda_1 r)
+
+.. math::
+
+    f_A(r) = -B \exp(-\lambda_2 r)
+
+with the smooth cutoff
+
+.. math::
+
+    f_C(r) =
+    \begin{cases}
+    1, & r < R - D \\
+    \frac{1}{2}\left[1 - \sin\left(\frac{\pi (r - R)}{2D}\right)\right], & |r-R| \le D \\
+    0, & r > R + D
+    \end{cases}
+
+and the angular factor
+
+.. math::
+
+    g(\theta) = \gamma \left(1 + \frac{c^2}{d^2}
+    - \frac{c^2}{d^2 + (h - \cos\theta)^2}\right)
+
+This is the key idea behind the ForgeFF Tersoff data layout:
+
+- each ordered species triple :math:`(i, j, k)` gets one parameter block
+- the TOML schema stores that as ``[triplet.*]``
+- the runtime engine is the native ForgeFF Numba calculator
+
+In practice this means Tersoff is handled as a multicomponent triple-table
+model with explicit species ordering, just like the rest of ForgeFF’s
+TOML-driven families. If the species list contains :math:`N` elements, the
+template and parser cover all :math:`N^3` ordered triplets, and each ordered
+triple has its own 14-parameter row.
+
 Extrapolation grading
 ---------------------
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from ase.data import atomic_masses, chemical_symbols
 
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
+from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
 
 
 def _species_labels(species: np.ndarray) -> list[str]:
@@ -116,9 +118,53 @@ def _write_adp_body(fd, data: ADPData, *, numformat: str = "%.16e") -> None:
             _write_rows(fd, np.asarray(data.quadrupole_values, dtype=float)[i, j], numformat=numformat)
 
 
+def _write_tersoff_body(fd, data: TersoffData, *, numformat: str = "%.16e") -> None:
+    labels = [str(symbol) for symbol in data.species]
+    table = np.asarray(data.parameter_table, dtype=float)
+
+    fd.write(
+        "# Tersoff parameters fitted with ForgeFF\n"
+        "# these entries are in LAMMPS \"metal\" units:\n"
+        "#   A,B = eV; lambda1,lambda2,lambda3 = 1/Angstroms; R,D = Angstroms\n"
+        "#   other quantities are unitless\n\n"
+    )
+    fd.write("# format of a single entry (one or more lines):\n")
+    fd.write("#   element 1, element 2, element 3,\n")
+    fd.write("#               m, gamma, lambda3, c, d, costheta0, n,\n")
+    fd.write("#               beta, lambda2, B, R, D, lambda1, A\n\n")
+
+    for i, left in enumerate(labels):
+        for j, middle in enumerate(labels):
+            for k, right in enumerate(labels):
+                params = TersoffParameters(*map(float, table[i, j, k].tolist()))
+                fd.write(f"{left:>2s} {middle:>4s} {right:>4s} ")
+                fd.write(
+                    " ".join(
+                        f"{value:.16e}"
+                        for value in (
+                            params.m,
+                            params.gamma,
+                            params.lambda3,
+                            params.c,
+                            params.d,
+                            params.h,
+                            params.n,
+                            params.beta,
+                            params.lambda2,
+                            params.B,
+                            params.R,
+                            params.D,
+                            params.lambda1,
+                            params.A,
+                        )
+                    )
+                )
+                fd.write("\n")
+
+
 def write_lammps_potential(
     filename: str | Path,
-    data: EAMData | ADPData,
+    data: EAMData | ADPData | TersoffData,
     *,
     header: list[str] | None = None,
     lattice: list[str] | None = None,
@@ -130,6 +176,12 @@ def write_lammps_potential(
     if isinstance(data, ADPData):
         if path.suffix != ".adp":
             raise ValueError("ADP export requires an output filename ending in .adp")
+    elif isinstance(data, TersoffData):
+        if path.suffix != ".tersoff":
+            raise ValueError("Tersoff export requires an output filename ending in .tersoff")
+        with open(path, "w", encoding="utf-8") as fd:
+            _write_tersoff_body(fd, data)
+        return
     elif data.form == "fs":
         if path.suffix != ".fs":
             raise ValueError("Finnis-Sinclair export requires an output filename ending in .fs")
@@ -148,3 +200,29 @@ def write_lammps_potential(
             _write_adp_body(fd, data)
         else:
             _write_eam_body(fd, data)
+
+
+def read_lammps_tersoff_potential(filename: str | Path) -> TersoffData:
+    """Read a standard LAMMPS Tersoff potential file."""
+    path = Path(filename)
+    entries: "OrderedDict[tuple[str, str, str], list[float]]" = OrderedDict()
+    with path.open("r", encoding="utf-8") as fd:
+        content = [line.strip() for line in fd if line.strip() and not line.strip().startswith("#")]
+
+    for line in content:
+        fields = line.split()
+        if len(fields) != 17:
+            raise ValueError("The Tersoff file must contain 17 tokens per entry.")
+        key = (fields[0], fields[1], fields[2])
+        entries[key] = [float(value) for value in fields[3:]]
+
+    if not entries:
+        raise ValueError("The Tersoff potential file is empty.")
+
+    species: list[str] = []
+    for key in entries:
+        for symbol in key:
+            if symbol not in species:
+                species.append(symbol)
+
+    return TersoffData.from_parameter_dict(entries, species=species)

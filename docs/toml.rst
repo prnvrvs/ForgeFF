@@ -202,9 +202,11 @@ accelerated path.
 Tersoff
 -------
 
-ForgeFF also supports a native Tersoff family with a species-order table and
-explicit triple blocks. Each block stores the 14 parameters for one
-``(i, j, k)`` species combination:
+ForgeFF also supports a native multicomponent Tersoff family with a
+species-order table and explicit triple blocks. Each block stores the 14
+parameters for one ordered ``(i, j, k)`` species combination. For a binary
+system, that means separate blocks for all ordered triples such as ``SiSiSi``,
+``SiSiC``, ``SiCSi``, and ``CCC``:
 
 .. code-block:: toml
 
@@ -213,10 +215,31 @@ explicit triple blocks. Each block stores the 14 parameters for one
     cutoff_skin = 0.3
 
     [species]
-    order = ["Si"]
+    order = ["Si", "C"]
 
     [triplet.SiSiSi]
     initial = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+
+    [triplet.SiSiC]
+    initial = [1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1, 10.1, 11.1, 12.1, 13.1, 14.1]
+
+    [triplet.SiCSi]
+    initial = [1.2, 2.2, 3.2, 4.2, 5.2, 6.2, 7.2, 8.2, 9.2, 10.2, 11.2, 12.2, 13.2, 14.2]
+
+    [triplet.SiCC]
+    initial = [1.25, 2.25, 3.25, 4.25, 5.25, 6.25, 7.25, 8.25, 9.25, 10.25, 11.25, 12.25, 13.25, 14.25]
+
+    [triplet.CSiSi]
+    initial = [1.3, 2.3, 3.3, 4.3, 5.3, 6.3, 7.3, 8.3, 9.3, 10.3, 11.3, 12.3, 13.3, 14.3]
+
+    [triplet.CSiC]
+    initial = [1.35, 2.35, 3.35, 4.35, 5.35, 6.35, 7.35, 8.35, 9.35, 10.35, 11.35, 12.35, 13.35, 14.35]
+
+    [triplet.CCSi]
+    initial = [1.4, 2.4, 3.4, 4.4, 5.4, 6.4, 7.4, 8.4, 9.4, 10.4, 11.4, 12.4, 13.4, 14.4]
+
+    [triplet.CCC]
+    initial = [1.3, 2.3, 3.3, 4.3, 5.3, 6.3, 7.3, 8.3, 9.3, 10.3, 11.3, 12.3, 13.3, 14.3]
 
 The runtime engine still lives in the training setting file and uses
 ``engine = "numba"`` for now.
