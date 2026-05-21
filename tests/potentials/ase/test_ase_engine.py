@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from ase import Atoms
+from ase.build import bulk
 from ase.calculators.lj import LennardJones
 from ase.calculators.morse import MorsePotential
 import pytest
@@ -42,6 +43,16 @@ def _compare(calc_a, calc_b, atoms: Atoms) -> None:
     np.testing.assert_allclose(atoms_a.get_stress(), atoms_b.get_stress(), rtol=1e-12, atol=1e-12)
 
 
+def _strained_perturbed_al(seed: int) -> Atoms:
+    rng = np.random.default_rng(seed)
+    atoms = bulk("Al", "fcc", a=4.05, cubic=True) * (2, 2, 2)
+    strain = np.eye(3) + rng.uniform(-0.02, 0.02, size=(3, 3))
+    atoms.set_cell(atoms.cell.array @ strain, scale_atoms=True)
+    atoms.positions += rng.uniform(-0.05, 0.05, size=atoms.positions.shape)
+    atoms.wrap()
+    return atoms
+
+
 def test_lj_engine_ase_matches_ase_calculator(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path / "lj.toml",
@@ -76,6 +87,62 @@ initial = [0.25, 4.0, 2.3]
     calc = make_calculator(pot, engine="ASE")
     direct = MorsePotential(epsilon=0.25, rho0=4.0 * 2.3, r0=2.3)
     _compare(calc, direct, _al_dimer())
+
+
+def test_morse_numpy_numba_and_ase_match_on_perturbed_cells(tmp_path: Path) -> None:
+    cutoff = 3.2
+    de = 0.25
+    a = 4.0
+    re = 2.3
+    path = _write_text(
+        tmp_path / "morse.toml",
+        f"""
+[potential]
+family = "analytical"
+form = "morse"
+cutoff = {cutoff}
+initial = [{de}, {a}, {re}]
+
+[potential.calculator_kwargs]
+rcut1 = {cutoff / re}
+rcut2 = {(cutoff + 0.1) / re}
+""".lstrip(),
+    )
+
+    pot_numpy = read_potential(str(path))
+    pot_numba = read_potential(str(path))
+    pot_ase = read_potential(str(path))
+    calc_numpy = make_calculator(pot_numpy, engine="numpy")
+    calc_numba = make_calculator(pot_numba, engine="numba")
+    calc_ase = make_calculator(pot_ase, engine="ASE")
+
+    for seed in range(5):
+        atoms = _strained_perturbed_al(seed)
+        atoms_numpy = atoms.copy()
+        atoms_numba = atoms.copy()
+        atoms_ase = atoms.copy()
+
+        atoms_numpy.calc = calc_numpy
+        atoms_numba.calc = calc_numba
+        atoms_ase.calc = calc_ase
+
+        np.testing.assert_allclose(
+            atoms_numpy.get_potential_energy(),
+            atoms_ase.get_potential_energy(),
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(atoms_numpy.get_forces(), atoms_ase.get_forces(), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(atoms_numpy.get_stress(), atoms_ase.get_stress(), rtol=1e-12, atol=1e-12)
+
+        np.testing.assert_allclose(
+            atoms_numba.get_potential_energy(),
+            atoms_ase.get_potential_energy(),
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(atoms_numba.get_forces(), atoms_ase.get_forces(), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(atoms_numba.get_stress(), atoms_ase.get_stress(), rtol=1e-12, atol=1e-12)
 
 
 def test_emt_is_rejected_as_a_fitting_target() -> None:

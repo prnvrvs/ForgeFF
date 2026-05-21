@@ -138,6 +138,7 @@ def make_calculator(
                     calculator_kwargs["calculator"] = _ASE_ANALYTICAL_CALCULATORS[ase_form]
             pot_data.engine = "ASE"
             if engine_name == "ase":
+                pot_data.calculator_kwargs = calculator_kwargs
                 return ASECalculatorWrapper(pot_data, mode=mode, **kwargs)
         if engine_name == "numba" and "form" not in calculator_kwargs and "expression" in calculator_kwargs:
             warnings.warn(

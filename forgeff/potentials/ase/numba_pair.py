@@ -282,9 +282,9 @@ def _calculate_pair(form_id, params, i_list, j_list, dist, rvec, natoms):
         ry = rvec[k, 1]
         rz = rvec[k, 2]
         inv_r = 1.0 / r
-        fx = -ddr * rx * inv_r
-        fy = -ddr * ry * inv_r
-        fz = -ddr * rz * inv_r
+        fx = ddr * rx * inv_r
+        fy = ddr * ry * inv_r
+        fz = ddr * rz * inv_r
 
         energy += pair_energy
         local[i] += 0.5 * pair_energy
@@ -329,9 +329,9 @@ def _calculate_pair_multispecies(form_id, pair_index_map, pair_params, types, i_
         ry = rvec[k, 1]
         rz = rvec[k, 2]
         inv_r = 1.0 / r
-        fx = -ddr * rx * inv_r
-        fy = -ddr * ry * inv_r
-        fz = -ddr * rz * inv_r
+        fx = ddr * rx * inv_r
+        fy = ddr * ry * inv_r
+        fz = ddr * rz * inv_r
 
         energy += pair_energy
         local[i] += 0.5 * pair_energy
@@ -433,6 +433,11 @@ class NumbaPairPotential(Calculator):
         natoms = len(self.atoms)
         i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
         if len(i_list):
+            unique = i_list < j_list
+            i_list = i_list[unique]
+            j_list = j_list[unique]
+            shifts = shifts[unique]
+            dist = dist[unique]
             rvec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
             if self.multispecies:
                 types = self.atoms.get_atomic_numbers().astype(np.int64)
@@ -469,4 +474,4 @@ class NumbaPairPotential(Calculator):
         self.results["forces"] = np.asarray(forces, dtype=float)
 
         if self.atoms.cell.rank == 3 and self.atoms.get_volume() != 0.0:
-            self.results["stress"] = full_3x3_to_voigt_6_stress(-virial / self.atoms.get_volume())
+            self.results["stress"] = full_3x3_to_voigt_6_stress(virial / self.atoms.get_volume())

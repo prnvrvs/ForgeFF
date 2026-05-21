@@ -142,6 +142,11 @@ class CustomPairPotential(Calculator):
         numbers = self.atoms.get_atomic_numbers().astype(np.int32)
         i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
         if len(i_list):
+            unique = i_list < j_list
+            i_list = i_list[unique]
+            j_list = j_list[unique]
+            shifts = shifts[unique]
+            dist = dist[unique]
             vec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
             for idx in range(len(i_list)):
                 r = float(dist[idx])
@@ -155,7 +160,7 @@ class CustomPairPotential(Calculator):
                 pair_energy = float(entry["energy"](*args))
                 d_v_dr = float(entry["derivative"](*args))
                 unit = vec[idx] / r
-                fij = -d_v_dr * unit
+                fij = d_v_dr * unit
                 energy += pair_energy
                 local[i] += 0.5 * pair_energy
                 local[j] += 0.5 * pair_energy
@@ -169,7 +174,7 @@ class CustomPairPotential(Calculator):
         self.results["forces"] = forces
 
         if self.atoms.cell.rank == 3 and self.atoms.get_volume() != 0.0:
-            self.results["stress"] = full_3x3_to_voigt_6_stress(-virial / self.atoms.get_volume())
+            self.results["stress"] = full_3x3_to_voigt_6_stress(virial / self.atoms.get_volume())
         else:
             self.results.pop("stress", None)
 
@@ -218,6 +223,11 @@ class CustomPairPotential(Calculator):
 
         i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
         if len(i_list):
+            unique = i_list < j_list
+            i_list = i_list[unique]
+            j_list = j_list[unique]
+            shifts = shifts[unique]
+            dist = dist[unique]
             vec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
             args = (np.asarray(dist, dtype=float), *self._parameter_values)
             pair_energy = np.asarray(self._compiled.energy(*args), dtype=float)
@@ -231,7 +241,7 @@ class CustomPairPotential(Calculator):
             else:
                 d_v_dr = np.asarray(d_v_dr, dtype=float)
             unit = vec / dist[:, None]
-            fij = -d_v_dr[:, None] * unit
+            fij = d_v_dr[:, None] * unit
 
             energy = float(np.sum(pair_energy))
             np.add.at(forces, i_list, fij)
@@ -249,4 +259,4 @@ class CustomPairPotential(Calculator):
         self.results["forces"] = forces
 
         if self.atoms.cell.rank == 3 and self.atoms.get_volume() != 0.0:
-            self.results["stress"] = full_3x3_to_voigt_6_stress(-virial / self.atoms.get_volume())
+            self.results["stress"] = full_3x3_to_voigt_6_stress(virial / self.atoms.get_volume())
