@@ -7,9 +7,11 @@ from numpy.testing import assert_allclose
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.eam import EAM as ASEEAM
+from scipy.interpolate import CubicSpline
 
 from forgeff.calculator import make_calculator
 from forgeff.io import read_potential, write_lammps_potential
+from forgeff.io.lammps import _resample_values
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
@@ -209,6 +211,23 @@ def test_write_lammps_alloy_resamples_grid(tmp_path: Path) -> None:
     assert_allclose(embedding, [0.0, 2.0 / 3.0, 4.0 / 3.0, 2.0], rtol=0, atol=1e-12)
     assert_allclose(density, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
     assert_allclose(pair, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
+
+
+def test_resample_values_uses_clamped_boundary_conditions() -> None:
+    source_grid = np.array([0.0, 1.0, 2.0, 3.0], dtype=float)
+    values = source_grid**3
+    target_grid = np.array([0.5, 1.5, 2.5], dtype=float)
+
+    actual = _resample_values(source_grid, values, target_grid)
+    deriv = np.gradient(values, source_grid, edge_order=2)
+    expected = np.asarray(
+        CubicSpline(source_grid, values, bc_type=((1, deriv[0]), (1, deriv[-1])))(target_grid),
+        dtype=float,
+    )
+    default = np.asarray(CubicSpline(source_grid, values)(target_grid), dtype=float)
+
+    assert_allclose(actual, expected, rtol=0, atol=1e-12)
+    assert not np.allclose(actual, default, rtol=0, atol=1e-12)
 
 
 def test_write_lammps_alloy_uses_custom_header_metadata_in_body(tmp_path: Path) -> None:

@@ -59,9 +59,22 @@ def _uniform_grid(grid: np.ndarray, count: int | None) -> np.ndarray:
 
 def _resample_values(source_grid: np.ndarray, values: np.ndarray, target_grid: np.ndarray) -> np.ndarray:
     arr = np.asarray(values, dtype=float)
-    if arr.shape[-1] != len(source_grid):
+    coords = np.asarray(source_grid, dtype=float)
+    if arr.shape[-1] != len(coords):
         raise ValueError("Grid length does not match the last axis of the tabulated values.")
-    spline = CubicSpline(np.asarray(source_grid, dtype=float), arr, axis=-1)
+    if coords.size < 2:
+        raise ValueError("EAM/ADP export requires at least two points on each grid.")
+
+    if coords.size == 2:
+        left_slope = (np.take(arr, 1, axis=-1) - np.take(arr, 0, axis=-1)) / (coords[1] - coords[0])
+        right_slope = left_slope
+    else:
+        deriv = np.gradient(arr, coords, axis=-1, edge_order=2)
+        left_slope = np.asarray(deriv[..., 0], dtype=float)
+        right_slope = np.asarray(deriv[..., -1], dtype=float)
+
+    # Use explicit endpoint slopes, mirroring potfit's clamped spline setup.
+    spline = CubicSpline(coords, arr, axis=-1, bc_type=((1, left_slope), (1, right_slope)))
     return np.asarray(spline(target_grid), dtype=float)
 
 
