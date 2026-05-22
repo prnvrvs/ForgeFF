@@ -10,6 +10,7 @@ from ase.calculators.eam import EAM as ASEEAM
 
 from forgeff.calculator import make_calculator
 from forgeff.io import read_potential, write_lammps_potential
+from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
 from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
 
@@ -208,6 +209,60 @@ def test_write_lammps_alloy_resamples_grid(tmp_path: Path) -> None:
     assert_allclose(embedding, [0.0, 2.0 / 3.0, 4.0 / 3.0, 2.0], rtol=0, atol=1e-12)
     assert_allclose(density, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
     assert_allclose(pair, [0.0, 0.5, 1.0, 1.5, 2.0], rtol=0, atol=1e-12)
+
+
+def test_write_lammps_alloy_uses_custom_header_metadata_in_body(tmp_path: Path) -> None:
+    pot = EAMData(
+        form="alloy",
+        species_count=1,
+        r_grid=np.array([0.0, 1.0], dtype=float),
+        rho_grid=np.array([0.0, 1.0], dtype=float),
+        phi_values=np.zeros((1, 1, 2), dtype=float),
+        rho_values=np.zeros((1, 1, 2), dtype=float),
+        emb_values=np.zeros((1, 2), dtype=float),
+    )
+    pot.species = np.array([41], dtype=np.int32)
+
+    output = tmp_path / "Nb.eam.alloy"
+    write_lammps_potential(
+        output,
+        pot,
+        mass=[92.906],
+        a=[3.3008],
+        lattice=["bcc"],
+    )
+
+    lines = output.read_text().splitlines()
+    body_line = next(line for line in lines if line.startswith("41 "))
+    assert body_line == "41 92.906000 3.300800 bcc"
+
+
+def test_write_lammps_adp_uses_custom_header_metadata_in_body(tmp_path: Path) -> None:
+    pot = ADPData(
+        form="alloy",
+        species_count=1,
+        r_grid=np.array([0.0, 1.0], dtype=float),
+        rho_grid=np.array([0.0, 1.0], dtype=float),
+        phi_values=np.zeros((1, 1, 2), dtype=float),
+        rho_values=np.zeros((1, 1, 2), dtype=float),
+        emb_values=np.zeros((1, 2), dtype=float),
+        dipole_values=np.zeros((1, 1, 2), dtype=float),
+        quadrupole_values=np.zeros((1, 1, 2), dtype=float),
+    )
+    pot.species = np.array([41], dtype=np.int32)
+
+    output = tmp_path / "Nb.adp"
+    write_lammps_potential(
+        output,
+        pot,
+        mass=[92.906],
+        a=[3.3008],
+        lattice=["bcc"],
+    )
+
+    lines = output.read_text().splitlines()
+    body_line = next(line for line in lines if line.startswith("41 "))
+    assert body_line == "41 92.906000 3.300800 bcc"
 
 
 def test_write_lammps_fs_resampled_grid_matches_source(tmp_path: Path) -> None:

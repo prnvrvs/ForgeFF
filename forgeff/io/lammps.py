@@ -107,14 +107,17 @@ def _write_eam_body(
     *,
     r_grid: np.ndarray,
     rho_grid: np.ndarray,
+    lattice: list[str] | None = None,
+    a: list[float] | None = None,
+    mass: list[float] | None = None,
     numformat: str = "%.16e",
 ) -> None:
     r = np.asarray(r_grid, dtype=float)
     rho = np.asarray(rho_grid, dtype=float)
     species = np.asarray(data.species, dtype=int)
-    masses = _species_masses(species)
-    lattices = _species_lattice(species, None)
-    a_values = _species_a(species, None)
+    masses = list(mass) if mass is not None else _species_masses(species)
+    lattices = _species_lattice(species, lattice)
+    a_values = _species_a(species, a)
 
     for i in range(data.species_count):
         fd.write(f"{int(species[i])} {masses[i]:f} {a_values[i]:f} {lattices[i]}\n")
@@ -145,9 +148,21 @@ def _write_adp_body(
     *,
     r_grid: np.ndarray,
     rho_grid: np.ndarray,
+    lattice: list[str] | None = None,
+    a: list[float] | None = None,
+    mass: list[float] | None = None,
     numformat: str = "%.16e",
 ) -> None:
-    _write_eam_body(fd, data, r_grid=r_grid, rho_grid=rho_grid, numformat=numformat)
+    _write_eam_body(
+        fd,
+        data,
+        r_grid=r_grid,
+        rho_grid=rho_grid,
+        lattice=lattice,
+        a=a,
+        mass=mass,
+        numformat=numformat,
+    )
 
     for i in range(data.species_count):
         for j in range(i + 1):
@@ -241,9 +256,9 @@ def write_lammps_potential(
     with open(path, "w", encoding="utf-8") as fd:
         _write_common_header(fd, data, r_grid=r_grid, rho_grid=rho_grid, header=header, lattice=lattice, a=a, mass=mass)
         if isinstance(data, ADPData):
-            _write_adp_body(fd, data, r_grid=r_grid, rho_grid=rho_grid)
+            _write_adp_body(fd, data, r_grid=r_grid, rho_grid=rho_grid, lattice=lattice, a=a, mass=mass)
         else:
-            _write_eam_body(fd, data, r_grid=r_grid, rho_grid=rho_grid)
+            _write_eam_body(fd, data, r_grid=r_grid, rho_grid=rho_grid, lattice=lattice, a=a, mass=mass)
 
 
 def read_lammps_tersoff_potential(filename: str | Path) -> TersoffData:
