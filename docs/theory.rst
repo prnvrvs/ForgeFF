@@ -349,9 +349,10 @@ Where the Jacobian comes from
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The grade is built from a Jacobian matrix. Here the word *Jacobian* simply
-means “how sensitive the energy is to each parameter.”
+means “how sensitive the model output is to each parameter.”
 
-For one configuration, ForgeFF asks the calculator for:
+For global grading, ForgeFF asks the calculator for the total-energy
+sensitivity of one configuration:
 
 .. math::
 
@@ -384,6 +385,37 @@ matrix:
 
 MaxVol then picks a square active-set submatrix from those training rows, and a
 new configuration is compared against it.
+
+For local grading, ForgeFF instead asks for per-neighborhood or per-atom
+energy sensitivities. That means the calculator provides a row for each local
+environment, not just one row for the whole structure. In that case the engine
+implements ``jac_energies()`` and the grade is computed from the stacked local
+rows.
+
+If a structure has :math:`M` local environments and :math:`P` fitted
+parameters, the local Jacobian block is:
+
+.. math::
+
+    J_\text{local} \in \mathbb{R}^{M \times P}
+
+For a training set of :math:`N` structures, ForgeFF stacks all local blocks
+into one larger matrix by row-wise concatenation:
+
+.. math::
+
+    J_\text{train} =
+    \begin{bmatrix}
+    J_1 \\
+    J_2 \\
+    \vdots \\
+    J_N
+    \end{bmatrix},
+    \qquad
+    J_i \in \mathbb{R}^{M_i \times P}
+
+The neighborhood grade is then computed from that stacked local matrix, and
+the structure grade is the maximum value across its local environments.
 
 For a new configuration, ForgeFF solves a least-squares problem to find the
 coefficients that best rebuild its Jacobian row from the active set. The grade
@@ -458,6 +490,46 @@ Interpretation:
 In configuration mode, ForgeFF computes one grade per structure. In
 neighborhood mode, it computes grades per local environment and then keeps the
 maximum value for the structure.
+
+Global vs local grading
+~~~~~~~~~~~~~~~~~~~~~~~
+
+ForgeFF uses two related grading modes:
+
+- **global grading** works at the configuration level
+- **local grading** works at the neighborhood or site level
+
+Global grading is based on the total energy of the full structure. It asks:
+
+.. math::
+
+    E(\mathbf{p}) \approx \sum_k c_k E_k(\mathbf{p})
+
+where the configuration Jacobian row is built from
+
+.. math::
+
+    \frac{\partial E}{\partial p_1},
+    \frac{\partial E}{\partial p_2},
+    \ldots,
+    \frac{\partial E}{\partial p_P}
+
+This is the right choice when the model is trained and validated on whole
+structures, which is the standard workflow for EAM, ADP, Tersoff, and most
+pair-potential fits.
+
+Local grading is based on per-atom or per-neighborhood energy contributions.
+Instead of one row per structure, ForgeFF builds one row per local environment
+and asks whether each neighborhood can be reconstructed from the active set.
+That is more sensitive to under-sampled coordination motifs and is useful when
+the calculator exposes a real site-energy decomposition.
+
+In practice:
+
+- use **global grading** for configuration-level active learning
+- use **local grading** only for engines that expose physical per-atom energies
+- do not use local grading with calculators that only provide a total energy
+  and a fabricated average per atom
 
 How this maps to TOML
 ---------------------
