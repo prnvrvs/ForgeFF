@@ -222,7 +222,7 @@ def test_ase_engine_adapter_handles_empty_atoms() -> None:
     assert result["forces"].shape == (0, 3)
 
 
-def test_ase_engine_adapter_rejects_site_energy_jacobians() -> None:
+def test_ase_engine_adapter_uses_pairwise_site_energies() -> None:
     pot_data = ASEData(
         engine="numpy",
         calculator_kwargs={
@@ -233,9 +233,10 @@ def test_ase_engine_adapter_rejects_site_energy_jacobians() -> None:
         },
     )
     engine = GenericASEEngine(pot_data)
+    atoms = Atoms("Ar2", positions=[[0.0, 0.0, 0.0], [1.2, 0.0, 0.0]], cell=(12.0, 12.0, 12.0), pbc=True)
+    result = engine.calculate(atoms)
 
-    with pytest.raises(NotImplementedError, match="site-energy Jacobians"):
-        engine.jac_energies(Atoms("Ar2", positions=[[0.0, 0.0, 0.0], [1.2, 0.0, 0.0]]))
+    np.testing.assert_allclose(result["energies"], np.full(2, 0.5 * result["energy"]))
 
 
 @pytest.mark.parametrize("engine_cls", [NumpySWEngine, NumbaSWEngine])
@@ -245,6 +246,17 @@ def test_sw_engines_skip_stress_for_nonperiodic_zero_volume_cells(engine_cls) ->
 
     assert "stress" not in result
     assert np.isfinite(result["energy"])
+    assert "energies" not in result
+
+
+@pytest.mark.parametrize("engine_cls", [NumpySWEngine, NumbaSWEngine])
+def test_sw_engines_reject_site_energy_jacobians(engine_cls) -> None:
+    atoms = Atoms("Si2", positions=[[0.0, 0.0, 0.0], [2.35, 0.0, 0.0]], cell=[6.0, 6.0, 6.0], pbc=True)
+    engine = engine_cls(SWData(species=["Si"]))
+
+    engine.calculate(atoms)
+    with pytest.raises(NotImplementedError, match="site-energy"):
+        engine.jac_energies(atoms)
 
 
 @pytest.mark.parametrize("engine_cls", [NumpyADPEngine, NumbaADPEngine])
@@ -286,7 +298,7 @@ def test_manual_species_energy_offsets_are_added_to_predictions() -> None:
     atoms.calc = make_calculator(pot_data, engine="numba")
 
     assert atoms.get_potential_energy() == pytest.approx(-1.5)
-    np.testing.assert_allclose(atoms.calc.results["energies"], np.array([-1.5]))
+    assert "energies" not in atoms.calc.results
 
 
 def test_regression_species_energy_offsets_are_fitted_from_totals() -> None:

@@ -289,7 +289,6 @@ class NumbaSWEngine:
         )
         results = {
             "energy": float(energy),
-            "energies": np.full(len(atoms), float(energy) / len(atoms) if len(atoms) else 0.0, dtype=float),
             "forces": forces,
         }
         if atoms.cell.rank == 3 and atoms.get_volume() != 0.0:
@@ -335,9 +334,9 @@ class NumbaSWEngine:
         return type("JacobianShim", (), {"parameters": d_energy})
 
     def jac_energies(self, atoms: Atoms):
-        """Numerical Jacobian for site energies."""
-        _, jac, _, _ = self._finite_difference_response(atoms)
-        return type("JacobianShim", (), {"parameters": jac})
+        raise NotImplementedError(
+            "Stillinger-Weber does not expose a physical site-energy decomposition in ForgeFF."
+        )
 
     def jac_forces(self, atoms: Atoms):
         _, _, d_forces, _ = self._finite_difference_response(atoms)

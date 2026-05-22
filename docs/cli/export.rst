@@ -26,8 +26,9 @@ Usage
    forgeff export initial.toml final.eam.alloy --nr 3001 --nrho 2001
 
 For tabulated EAM and ADP potentials, ``--nr`` and ``--nrho`` resample the
-export onto a uniform grid before writing the LAMMPS table. When omitted, the
-export uses the source grid length.
+export onto a uniform grid before writing the LAMMPS table. ForgeFF samples
+the source spline with explicit endpoint slopes before writing the table.
+When omitted, the export uses the source grid length.
 
 The export path is intended for tabulated EAM, ADP, and standard Tersoff
 potentials. The output is written in LAMMPS-compatible format so it can be

@@ -20,16 +20,20 @@ the repo:
 - the Tersoff benchmark uses a standard Si triplet parameter set embedded in
   the benchmark script
 
+The published figures use a consistent presentation style: clean white
+backgrounds, stronger line contrast, and shaded timing bands where the
+benchmark collects repeat ranges.
+
 How the benchmark is measured
 -----------------------------
 
 The benchmark scripts build reference supercells with increasing size,
-evaluate each calculator several times, and report the median runtime per
-configuration.
+evaluate each calculator five times by default, and report the mean runtime
+with a shaded repeat-range band per configuration.
 
 The EAM alloy benchmark uses conventional cubic Al cells. The EAM FS benchmark
-uses a distorted BCC Fe-H cell. The ADP benchmark uses conventional cubic Al
-cells. The SW and Tersoff benchmarks use diamond Si supercells.
+uses a distorted BCC Fe-H cell. The ADP benchmark uses a distorted cubic Al
+cell. The SW and Tersoff benchmarks use diamond Si supercells.
 
 The important point is not the exact millisecond count. The point is the
 trend:

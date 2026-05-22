@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 from ase.build import bulk
+from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.lj import LennardJones
 from ase.calculators.morse import MorsePotential
 import pytest
@@ -39,6 +40,12 @@ def _compare(calc_a, calc_b, atoms: Atoms) -> None:
     atoms_a.calc = calc_a
     atoms_b.calc = calc_b
     np.testing.assert_allclose(atoms_a.get_potential_energy(), atoms_b.get_potential_energy(), rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(
+        atoms_a.calc.results["energies"],
+        atoms_b.calc.results["energies"],
+        rtol=1e-12,
+        atol=1e-12,
+    )
     np.testing.assert_allclose(atoms_a.get_forces(), atoms_b.get_forces(), rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(atoms_a.get_stress(), atoms_b.get_stress(), rtol=1e-12, atol=1e-12)
 
@@ -51,6 +58,19 @@ def _strained_perturbed_al(seed: int) -> Atoms:
     atoms.positions += rng.uniform(-0.05, 0.05, size=atoms.positions.shape)
     atoms.wrap()
     return atoms
+
+
+class _NoSiteEnergyCalc(Calculator):
+    implemented_properties = ["energy", "forces", "stress"]
+
+    def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):  # noqa: B006
+        super().calculate(atoms, properties, system_changes)
+        natoms = len(self.atoms)
+        self.results = {
+            "energy": 1.23,
+            "forces": np.zeros((natoms, 3), dtype=float),
+            "stress": np.zeros(6, dtype=float),
+        }
 
 
 def test_lj_engine_ase_matches_ase_calculator(tmp_path: Path) -> None:
@@ -143,6 +163,56 @@ rcut2 = {(cutoff + 0.1) / re}
         )
         np.testing.assert_allclose(atoms_numba.get_forces(), atoms_ase.get_forces(), rtol=1e-12, atol=1e-12)
         np.testing.assert_allclose(atoms_numba.get_stress(), atoms_ase.get_stress(), rtol=1e-12, atol=1e-12)
+
+
+def test_lj_engine_ase_uses_pairwise_site_energies() -> None:
+    pot_data = ASEData(
+        engine="ASE",
+        calculator_kwargs={
+            "calculator": "LennardJones",
+            "epsilon": 0.20,
+            "sigma": 3.00,
+            "rc": 8.0,
+        },
+    )
+    engine = make_calculator(pot_data, engine="ASE")
+    atoms = _al_dimer()
+
+    result = engine.engine.calculate(atoms)
+    np.testing.assert_allclose(result["energies"], np.full(2, 0.5 * result["energy"]))
+
+
+def test_pairwise_ase_engine_jac_energies_is_available() -> None:
+    pot_data = ASEData(
+        engine="ASE",
+        calculator_kwargs={
+            "calculator": "LennardJones",
+            "epsilon": 0.20,
+            "sigma": 3.00,
+            "rc": 8.0,
+        },
+    )
+    pot_data.add_parameter("epsilon", (), 0.20)
+    pot_data.add_parameter("sigma", (), 3.00)
+    calc = make_calculator(pot_data, engine="ASE")
+    atoms = _al_dimer()
+
+    calc.engine.calculate(atoms)
+    jac = calc.engine.jac_energies(atoms).parameters
+
+    assert jac.shape == (2, len(atoms))
+    assert np.isfinite(jac).all()
+
+
+def test_generic_ase_engine_rejects_calculators_without_site_energies() -> None:
+    from forgeff.potentials.ase.engine import GenericASEEngine
+
+    pot_data = ASEData(engine="ASE", calculator_kwargs={"calculator": "LennardJones", "epsilon": 0.20, "sigma": 3.00, "rc": 8.0})
+    engine = GenericASEEngine(pot_data)
+    engine.calculator = _NoSiteEnergyCalc()
+
+    with pytest.raises(NotImplementedError, match="energies"):
+        engine.calculate(_al_dimer())
 
 
 def test_emt_is_rejected_as_a_fitting_target() -> None:

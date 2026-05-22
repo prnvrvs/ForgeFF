@@ -25,25 +25,29 @@ if str(ROOT) not in sys.path:
 
 from forgeff.calculator import make_calculator
 from forgeff.potentials.tersoff.data import TersoffData, TersoffParameters
+from benchmarks.plot_style import PALETTE, apply_publication_style, save_figure, style_axes
 
 
 @dataclass
 class BenchmarkResult:
     atoms: int
     n: int
-    ase_ms: float
-    ase_lo: float
-    ase_hi: float
-    numpy_ms: float
-    numpy_lo: float
-    numpy_hi: float
-    numba_ms: float
-    numba_lo: float
-    numba_hi: float
+    ase_mean: float
+    ase_std: float
+    ase_min: float
+    ase_max: float
+    numpy_mean: float
+    numpy_std: float
+    numpy_min: float
+    numpy_max: float
+    numba_mean: float
+    numba_std: float
+    numba_min: float
+    numba_max: float
 
     @property
     def speedup(self) -> float:
-        return self.ase_ms / self.numba_ms if self.numba_ms > 0 else float("inf")
+        return self.ase_mean / self.numba_mean if self.numba_mean > 0 else float("inf")
 
 
 def _parameters() -> dict[tuple[str, str, str], TersoffParameters]:
@@ -79,7 +83,7 @@ def _make_si_atoms(n: int):
     return atoms
 
 
-def _time_callable(func, atoms, repeats: int, *, before=None) -> tuple[float, float, float]:
+def _time_callable(func, atoms, repeats: int, *, before=None) -> tuple[float, float, float, float]:
     samples = []
     for _ in range(repeats):
         probe = atoms.copy()
@@ -89,7 +93,7 @@ def _time_callable(func, atoms, repeats: int, *, before=None) -> tuple[float, fl
         func(probe)
         samples.append((perf_counter() - start) * 1000.0)
     values = np.array(samples, dtype=float)
-    return float(np.median(values)), float(values.min()), float(values.max())
+    return float(values.mean()), float(values.std(ddof=0)), float(values.min()), float(values.max())
 
 
 def _evaluate(calc, atoms) -> None:
@@ -109,59 +113,68 @@ def _benchmark(sizes: list[int], repeats: int) -> list[BenchmarkResult]:
     results: list[BenchmarkResult] = []
     for n in sizes:
         atoms = _make_si_atoms(n)
-        ase_ms, ase_lo, ase_hi = _time_callable(
+        ase_mean, ase_std, ase_min, ase_max = _time_callable(
             lambda a: _evaluate(ase_calc, a),
             atoms,
             repeats,
             before=ase_calc.reset,
         )
-        numpy_ms, numpy_lo, numpy_hi = _time_callable(lambda a: _evaluate(numpy_calc, a), atoms, repeats)
-        numba_ms, numba_lo, numba_hi = _time_callable(lambda a: _evaluate(numba_calc, a), atoms, repeats)
+        numpy_mean, numpy_std, numpy_min, numpy_max = _time_callable(lambda a: _evaluate(numpy_calc, a), atoms, repeats)
+        numba_mean, numba_std, numba_min, numba_max = _time_callable(lambda a: _evaluate(numba_calc, a), atoms, repeats)
         results.append(
             BenchmarkResult(
                 len(atoms),
                 n,
-                ase_ms,
-                ase_lo,
-                ase_hi,
-                numpy_ms,
-                numpy_lo,
-                numpy_hi,
-                numba_ms,
-                numba_lo,
-                numba_hi,
+                ase_mean,
+                ase_std,
+                ase_min,
+                ase_max,
+                numpy_mean,
+                numpy_std,
+                numpy_min,
+                numpy_max,
+                numba_mean,
+                numba_std,
+                numba_min,
+                numba_max,
             )
         )
     return results
 
 
 def _plot(results: list[BenchmarkResult], output: Path) -> None:
+    apply_publication_style()
     atoms = np.array([r.atoms for r in results], dtype=float)
-    ase = np.array([r.ase_ms for r in results], dtype=float)
-    numpy = np.array([r.numpy_ms for r in results], dtype=float)
-    numba = np.array([r.numba_ms for r in results], dtype=float)
+    ase = np.array([r.ase_mean for r in results], dtype=float)
+    ase_min = np.array([r.ase_min for r in results], dtype=float)
+    ase_max = np.array([r.ase_max for r in results], dtype=float)
+    numpy = np.array([r.numpy_mean for r in results], dtype=float)
+    numpy_min = np.array([r.numpy_min for r in results], dtype=float)
+    numpy_max = np.array([r.numpy_max for r in results], dtype=float)
+    numba = np.array([r.numba_mean for r in results], dtype=float)
+    numba_min = np.array([r.numba_min for r in results], dtype=float)
+    numba_max = np.array([r.numba_max for r in results], dtype=float)
 
-    fig, ax = plt.subplots(figsize=(7.0, 4.2))
-    ax.plot(atoms, ase, "o-", lw=2, label="ASE")
-    ax.plot(atoms, numpy, "o-", lw=2, label="ForgeFF (Numpy)")
-    ax.plot(atoms, numba, "o-", lw=2, label="ForgeFF (Numba)")
-    ax.set_xlabel("Number of atoms")
-    ax.set_ylabel("Median evaluation time (ms)")
-    ax.set_title("Tersoff runtime on distorted Si")
-    ax.grid(True, alpha=0.25)
-    ax.legend(frameon=False)
+    fig, ax = plt.subplots(figsize=(7.3, 4.5))
+    ax.fill_between(atoms, ase_min, ase_max, color=PALETTE["reference"], alpha=0.10)
+    ax.fill_between(atoms, numpy_min, numpy_max, color=PALETTE["numpy"], alpha=0.10)
+    ax.fill_between(atoms, numba_min, numba_max, color=PALETTE["numba"], alpha=0.10)
+    ax.plot(atoms, ase, "o-", color=PALETTE["reference"], label="ASE")
+    ax.plot(atoms, numpy, "o-", color=PALETTE["numpy"], label="ForgeFF (NumPy)")
+    ax.plot(atoms, numba, "o-", color=PALETTE["numba"], label="ForgeFF (Numba)")
+    style_axes(ax, title="Tersoff runtime on distorted Si")
     ax.set_xscale("log")
     ax.set_yscale("log")
+    ax.legend(loc="upper left")
     fig.tight_layout()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=200)
+    save_figure(fig, output)
     plt.close(fig)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", nargs="+", type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -179,15 +192,18 @@ def main() -> None:
         "tersoff": [
             {
                 "atoms": r.atoms,
-                "ase_ms": r.ase_ms,
-                "ase_lo": r.ase_lo,
-                "ase_hi": r.ase_hi,
-                "numpy_ms": r.numpy_ms,
-                "numpy_lo": r.numpy_lo,
-                "numpy_hi": r.numpy_hi,
-                "numba_ms": r.numba_ms,
-                "numba_lo": r.numba_lo,
-                "numba_hi": r.numba_hi,
+                "ase_mean": r.ase_mean,
+                "ase_std": r.ase_std,
+                "ase_min": r.ase_min,
+                "ase_max": r.ase_max,
+                "numpy_mean": r.numpy_mean,
+                "numpy_std": r.numpy_std,
+                "numpy_min": r.numpy_min,
+                "numpy_max": r.numpy_max,
+                "numba_mean": r.numba_mean,
+                "numba_std": r.numba_std,
+                "numba_min": r.numba_min,
+                "numba_max": r.numba_max,
                 "speedup": r.speedup,
             }
             for r in results
@@ -200,8 +216,8 @@ def main() -> None:
 
     for row in results:
         print(
-            f"{row.atoms:5d} atoms  ASE {row.ase_ms:8.3f} ms  "
-            f"ForgeFF (Numpy) {row.numpy_ms:8.3f} ms  ForgeFF (Numba) {row.numba_ms:8.3f} ms  "
+            f"{row.atoms:5d} atoms  ASE {row.ase_mean:8.3f} ms  "
+            f"ForgeFF (Numpy) {row.numpy_mean:8.3f} ms  ForgeFF (Numba) {row.numba_mean:8.3f} ms  "
             f"speedup {row.speedup:5.2f}x"
         )
 

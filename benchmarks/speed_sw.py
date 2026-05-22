@@ -23,19 +23,29 @@ sys.path.insert(0, str(ROOT))
 
 from forgeff.calculator import make_calculator
 from forgeff.potentials.sw.data import SWData
+from benchmarks.plot_style import PALETTE, apply_publication_style, save_figure, style_axes
 
 
 @dataclass
 class BenchmarkResult:
     atoms: int
     n: int
-    matscipy_ms: float
-    numpy_ms: float
-    numba_ms: float
+    matscipy_mean: float
+    matscipy_std: float
+    matscipy_min: float
+    matscipy_max: float
+    numpy_mean: float
+    numpy_std: float
+    numpy_min: float
+    numpy_max: float
+    numba_mean: float
+    numba_std: float
+    numba_min: float
+    numba_max: float
 
     @property
     def speedup(self) -> float:
-        return self.matscipy_ms / self.numba_ms if self.numba_ms > 0 else float("inf")
+        return self.matscipy_mean / self.numba_mean if self.numba_mean > 0 else float("inf")
 
 
 def _make_sw_data() -> SWData:
@@ -96,14 +106,15 @@ def _make_si_atoms(n: int):
     return bulk("Si", "diamond", a=5.43, cubic=True) * (n, n, n)
 
 
-def _time_callable(func, atoms, repeats: int) -> float:
+def _time_callable(func, atoms, repeats: int) -> tuple[float, float, float, float]:
     samples = []
     for _ in range(repeats):
         probe = atoms.copy()
         start = perf_counter()
         func(probe)
         samples.append((perf_counter() - start) * 1000.0)
-    return float(np.median(samples))
+    values = np.array(samples, dtype=float)
+    return float(values.mean()), float(values.std(ddof=0)), float(values.min()), float(values.max())
 
 
 def _evaluate(calc, atoms) -> None:
@@ -134,40 +145,63 @@ def _benchmark(sizes: list[int], repeats: int) -> list[BenchmarkResult]:
         def run_numba(probe):
             _evaluate(numba_calc, probe)
 
-        matscipy_ms = _time_callable(run_matscipy, atoms, repeats)
-        numpy_ms = _time_callable(run_numpy, atoms, repeats)
-        numba_ms = _time_callable(run_numba, atoms, repeats)
-        results.append(BenchmarkResult(len(atoms), n, matscipy_ms, numpy_ms, numba_ms))
+        matscipy_mean, matscipy_std, matscipy_min, matscipy_max = _time_callable(run_matscipy, atoms, repeats)
+        numpy_mean, numpy_std, numpy_min, numpy_max = _time_callable(run_numpy, atoms, repeats)
+        numba_mean, numba_std, numba_min, numba_max = _time_callable(run_numba, atoms, repeats)
+        results.append(
+            BenchmarkResult(
+                len(atoms),
+                n,
+                matscipy_mean,
+                matscipy_std,
+                matscipy_min,
+                matscipy_max,
+                numpy_mean,
+                numpy_std,
+                numpy_min,
+                numpy_max,
+                numba_mean,
+                numba_std,
+                numba_min,
+                numba_max,
+            )
+        )
     return results
 
 
 def _plot(results: list[BenchmarkResult], output: Path) -> None:
+    apply_publication_style()
     atoms = np.array([r.atoms for r in results], dtype=float)
-    matscipy = np.array([r.matscipy_ms for r in results], dtype=float)
-    numpy = np.array([r.numpy_ms for r in results], dtype=float)
-    numba = np.array([r.numba_ms for r in results], dtype=float)
+    matscipy = np.array([r.matscipy_mean for r in results], dtype=float)
+    matscipy_min = np.array([r.matscipy_min for r in results], dtype=float)
+    matscipy_max = np.array([r.matscipy_max for r in results], dtype=float)
+    numpy = np.array([r.numpy_mean for r in results], dtype=float)
+    numpy_min = np.array([r.numpy_min for r in results], dtype=float)
+    numpy_max = np.array([r.numpy_max for r in results], dtype=float)
+    numba = np.array([r.numba_mean for r in results], dtype=float)
+    numba_min = np.array([r.numba_min for r in results], dtype=float)
+    numba_max = np.array([r.numba_max for r in results], dtype=float)
 
-    fig, ax = plt.subplots(figsize=(7.0, 4.2))
-    ax.plot(atoms, matscipy, "o-", lw=2, label="matscipy")
-    ax.plot(atoms, numpy, "o-", lw=2, label="ForgeFF (Numpy)")
-    ax.plot(atoms, numba, "o-", lw=2, label="ForgeFF (Numba)")
-    ax.set_xlabel("Number of atoms")
-    ax.set_ylabel("Median evaluation time (ms)")
-    ax.set_title("Stillinger-Weber runtime on Si")
-    ax.grid(True, alpha=0.25)
-    ax.legend(frameon=False)
+    fig, ax = plt.subplots(figsize=(7.3, 4.5))
+    ax.fill_between(atoms, matscipy_min, matscipy_max, color=PALETTE["reference"], alpha=0.10)
+    ax.fill_between(atoms, numpy_min, numpy_max, color=PALETTE["numpy"], alpha=0.10)
+    ax.fill_between(atoms, numba_min, numba_max, color=PALETTE["numba"], alpha=0.10)
+    ax.plot(atoms, matscipy, "o-", color=PALETTE["reference"], label="matscipy")
+    ax.plot(atoms, numpy, "o-", color=PALETTE["numpy"], label="ForgeFF (NumPy)")
+    ax.plot(atoms, numba, "o-", color=PALETTE["numba"], label="ForgeFF (Numba)")
+    style_axes(ax, title="Stillinger-Weber runtime on Si")
     ax.set_xscale("log")
     ax.set_yscale("log")
+    ax.legend(loc="upper left")
     fig.tight_layout()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=200)
+    save_figure(fig, output)
     plt.close(fig)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", nargs="+", type=int, default=[2, 3, 4, 5, 6])
-    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -185,9 +219,18 @@ def main() -> None:
         "sw": [
             {
                 "atoms": r.atoms,
-                "matscipy_ms": r.matscipy_ms,
-                "numpy_ms": r.numpy_ms,
-                "numba_ms": r.numba_ms,
+                "matscipy_mean": r.matscipy_mean,
+                "matscipy_std": r.matscipy_std,
+                "matscipy_min": r.matscipy_min,
+                "matscipy_max": r.matscipy_max,
+                "numpy_mean": r.numpy_mean,
+                "numpy_std": r.numpy_std,
+                "numpy_min": r.numpy_min,
+                "numpy_max": r.numpy_max,
+                "numba_mean": r.numba_mean,
+                "numba_std": r.numba_std,
+                "numba_min": r.numba_min,
+                "numba_max": r.numba_max,
                 "speedup": r.speedup,
             }
             for r in results
@@ -200,8 +243,8 @@ def main() -> None:
 
     for row in results:
         print(
-            f"{row.atoms:4d} atoms  matscipy {row.matscipy_ms:8.3f} ms  "
-            f"ForgeFF (Numpy) {row.numpy_ms:8.3f} ms  ForgeFF (Numba) {row.numba_ms:8.3f} ms  "
+            f"{row.atoms:4d} atoms  matscipy {row.matscipy_mean:8.3f} ms  "
+            f"ForgeFF (Numpy) {row.numpy_mean:8.3f} ms  ForgeFF (Numba) {row.numba_mean:8.3f} ms  "
             f"speedup {row.speedup:5.2f}x"
         )
 

@@ -68,6 +68,7 @@ If you want the shortest route into the package, start here:
 * :doc:`analytical`
 * :doc:`theory`
 * :doc:`performance`
+* :doc:`release_notes`
 * :doc:`cli/index`
 * :doc:`api/index`
 * :doc:`optimizers/index`
@@ -95,6 +96,7 @@ Reference
    analytical
    theory
    performance
+   release_notes
    cli/index
    api/index
    optimizers/index

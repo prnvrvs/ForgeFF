@@ -18,6 +18,7 @@ class GenericASEEngine:
         self.ase_data = ase_data
         self.mode = mode
         self.calculator = None
+        self._supports_site_energies = False
         self._init_calculator()
 
     def _init_calculator(self):
@@ -112,8 +113,17 @@ class GenericASEEngine:
 
         if len(atoms) == 0:
             site_energies = np.zeros(0, dtype=float)
+            self._supports_site_energies = True
         else:
-            site_energies = np.full(len(atoms), energy / len(atoms), dtype=float)
+            calc_site_energies = self.calculator.results.get("energies")
+            if calc_site_energies is not None:
+                site_energies = np.asarray(calc_site_energies, dtype=float).reshape(len(atoms))
+                self._supports_site_energies = True
+            else:
+                raise NotImplementedError(
+                    "GenericASEEngine requires the wrapped ASE calculator to provide per-atom "
+                    "energies in results['energies']; this calculator only exposes total energy."
+                )
 
         return {
             "energy": energy,
@@ -173,16 +183,13 @@ class GenericASEEngine:
         return SimpleNamespace(parameters=d_energy)
 
     def jac_energies(self, atoms: Atoms):
-        """Site-energy Jacobians are not meaningful for generic ASE adapters.
-
-        The adapter only provides a uniform average per-atom energy for API
-        compatibility. That is not a physical site-energy decomposition, so
-        exposing a Jacobian here would mislead neighborhood grading.
-        """
-        raise NotImplementedError(
-            "GenericASEEngine does not provide site-energy Jacobians because its "
-            "'energies' output is only a uniform average, not a physical site-energy decomposition."
-        )
+        if not self._supports_site_energies:
+            raise NotImplementedError(
+                "GenericASEEngine does not provide site-energy Jacobians because its "
+                "'energies' output is only a uniform average, not a physical site-energy decomposition."
+            )
+        _, d_energies, _, _ = self._finite_difference_response(atoms)
+        return SimpleNamespace(parameters=d_energies)
 
     def jac_forces(self, atoms: Atoms):
         _, _, d_forces, _ = self._finite_difference_response(atoms)
