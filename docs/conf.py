@@ -18,6 +18,8 @@ import sys
 import importlib.util
 from pathlib import Path
 
+from sphinx_gallery.sorting import ExplicitOrder
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault(
@@ -59,6 +61,7 @@ sphinx_gallery_conf = {
     "ignore_pattern": r".*/_common\.py$",
     "examples_dirs": ["../examples"],
     "gallery_dirs": ["examples"],
+    "subsection_order": ExplicitOrder(["../examples/toml", "../examples/python"]),
     "within_subsection_order": "FileNameSortKey",
     "download_all_examples": False,
 }
