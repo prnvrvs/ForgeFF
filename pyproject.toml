@@ -12,7 +12,6 @@ description = "Semi-empirical potential fitting in Python"
 dependencies = [
     "numpy>=1.23",  # This supports python 3.11.
     "ase",
-    "mpi4py",
     "scipy",
     "sympy",
 ]
@@ -42,6 +41,7 @@ license-files = ['LICENSE']
 dynamic = ["version"]
 
 [project.optional-dependencies]
+mpi = ["mpi4py"]
 numba = ["numba"]
 jax = ["jax"]
 test = [

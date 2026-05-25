@@ -92,7 +92,7 @@ def _get_world() -> MPI.Comm | DummyMPIComm:
     launcher_world_size = _launcher_world_size()
     try:
         from mpi4py import MPI
-    except Exception:
+    except (ImportError, RuntimeError):
         if launcher_world_size > 1:
             raise RuntimeError(
                 "MPI training was requested, but mpi4py/MPI could not be loaded. "
