@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import importlib
 import sys
 from types import SimpleNamespace
@@ -31,6 +32,22 @@ from forgeff.optimizers.randomizer import Randomizer
 from forgeff.parallel import DummyMPIComm
 from forgeff.train.setting import _convert_steps
 from forgeff.train.trainer import Trainer, _validate_potential_species_order
+
+
+def test_parallel_import_falls_back_when_mpi_runtime_is_missing(monkeypatch) -> None:
+    original_import = builtins.__import__
+
+    def _missing_mpi(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "mpi4py":
+            raise RuntimeError("cannot load MPI library")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _missing_mpi)
+
+    parallel = importlib.reload(importlib.import_module("forgeff.parallel"))
+
+    assert parallel.world.__class__.__name__ == "DummyMPIComm"
+    assert parallel.world.size == 1
 
 
 @pytest.mark.parametrize(

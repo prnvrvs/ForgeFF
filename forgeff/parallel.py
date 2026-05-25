@@ -89,12 +89,13 @@ def _get_world() -> MPI.Comm | DummyMPIComm:
         World MPI communicator.
 
     """
+    launcher_world_size = _launcher_world_size()
     try:
         from mpi4py import MPI
-    except ImportError:
-        if _launcher_world_size() > 1:
+    except Exception:
+        if launcher_world_size > 1:
             raise RuntimeError(
-                "MPI training was requested, but mpi4py is not installed. "
+                "MPI training was requested, but mpi4py/MPI could not be loaded. "
                 "Install mpi4py to use `mpirun`, or run ForgeFF without MPI."
             )
         return DummyMPIComm()
