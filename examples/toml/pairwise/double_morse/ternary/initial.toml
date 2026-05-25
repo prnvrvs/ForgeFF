@@ -1,0 +1,24 @@
+[potential]
+family = "analytical"
+form = "double_morse"
+cutoff = 8.0
+
+[species]
+order = ["H", "C", "O"]
+[pair.HH]
+initial = [0, 0, 0, 0, 0, 0, 0]
+
+[pair.HC]
+initial = [0, 0, 0, 0, 0, 0, 0]
+
+[pair.HO]
+initial = [0, 0, 0, 0, 0, 0, 0]
+
+[pair.CC]
+initial = [0, 0, 0, 0, 0, 0, 0]
+
+[pair.CO]
+initial = [0, 0, 0, 0, 0, 0, 0]
+
+[pair.OO]
+initial = [0, 0, 0, 0, 0, 0, 0]
