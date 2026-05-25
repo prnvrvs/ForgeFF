@@ -10,7 +10,7 @@ from ase import Atoms
 from ase.data import chemical_symbols
 
 from forgeff.io import read_potential, write_potential
-from forgeff.io.utils import get_dummy_species, read_images
+from forgeff.io.utils import get_dummy_species, read_images, set_potential_species
 from forgeff.loss import ErrorPrinter, LossFunction, LossFunctionBase, LossSetting
 from forgeff.optimizers import make_optimizer
 from forgeff.parallel import DummyMPIComm, is_master, world
@@ -212,7 +212,7 @@ def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> LossFunctio
     if not _species_labels(potential_species) and hasattr(pot_data, "calculator_kwargs"):
         potential_species = getattr(pot_data, "calculator_kwargs", {}).get("species")
     _validate_potential_species_order(species, potential_species)
-    pot_data.species = species
+    set_potential_species(pot_data, species)
     if hasattr(pot_data, "engine"):
         pot_data.engine = setting.common.engine
 

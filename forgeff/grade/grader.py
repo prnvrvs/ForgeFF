@@ -12,7 +12,7 @@ import forgeff.io
 from forgeff.calculator import make_calculator
 from forgeff.grade.maxvol import MaxVol, MaxVolResult, MaxVolSetting
 from forgeff.io import read_potential
-from forgeff.io.utils import get_dummy_species, read_images
+from forgeff.io.utils import get_dummy_species, read_images, set_potential_species
 from forgeff.parallel import DummyMPIComm, is_master, world
 from typing import Any
 
@@ -222,7 +222,7 @@ def grade_from_setting(filename_setting: str, comm: DummyMPIComm) -> None:
         species = get_dummy_species(images_training)
 
     pot_data = read_potential(potential_file)
-    pot_data.species = species
+    set_potential_species(pot_data, species)
     if hasattr(pot_data, "engine"):
         pot_data.engine = setting.common.engine
 

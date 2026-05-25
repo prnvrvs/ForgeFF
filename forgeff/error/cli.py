@@ -7,7 +7,7 @@ from pathlib import Path
 
 from forgeff.evaluate.evaluator import Evaluator
 from forgeff.io import read_potential
-from forgeff.io.utils import get_dummy_species, read_images
+from forgeff.io.utils import get_dummy_species, read_images, set_potential_species
 from forgeff.loss import ErrorPrinter, format_error_statistics
 from forgeff.parallel import is_master, world
 
@@ -28,7 +28,7 @@ def analyze_error_statistics(
         species = get_dummy_species(images)
 
     pot_data = read_potential(str(potential))
-    pot_data.species = species
+    set_potential_species(pot_data, species)
     evaluator = Evaluator(pot_data, engine=engine, comm=comm)
     images_eval = evaluator.evaluate(images)
     return ErrorPrinter(images_eval).calculate()
