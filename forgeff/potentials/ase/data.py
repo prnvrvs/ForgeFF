@@ -88,6 +88,11 @@ class ASEData:
 
     def write(self, filename: str):
         """Save the potential state."""
+        if str(filename).endswith(".toml"):
+            from forgeff.io.toml import write_potential_toml
+
+            write_potential_toml(filename, self)
+            return
         np.save(
             filename,
             {

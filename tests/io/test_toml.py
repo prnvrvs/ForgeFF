@@ -9,7 +9,7 @@ import pytest
 from ase import Atoms
 
 from forgeff.calculator import make_calculator
-from forgeff.io import read_potential
+from forgeff.io import read_potential, write_potential
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.eam.adp_data import ADPData
 from forgeff.potentials.eam.data import EAMData
@@ -105,6 +105,89 @@ initial = [0.03, 5.0, 2.75, 0.01, 2.0, 3.5, 0.0]
     assert isinstance(data, ASEData)
     assert data.engine == "numpy"
     assert data.calculator_kwargs["expression"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "examples/toml/pairwise/double_morse/unary/initial.toml",
+        "examples/toml/pairwise/custom_expression/binary/initial.toml",
+    ],
+)
+def test_write_analytical_toml_roundtrip(tmp_path: Path, source: str) -> None:
+    data = read_potential(str(Path(__file__).resolve().parents[2] / source))
+    out = tmp_path / "final.toml"
+
+    write_potential(str(out), data)
+    loaded = read_potential(str(out))
+
+    assert isinstance(loaded, ASEData)
+    assert loaded.engine == data.engine
+    assert loaded.calculator_kwargs.get("form") == data.calculator_kwargs.get("form")
+    assert loaded.calculator_kwargs.get("expression") == data.calculator_kwargs.get("expression")
+    assert loaded.number_of_parameters_optimized == data.number_of_parameters_optimized
+    np.testing.assert_allclose(loaded.parameters, data.parameters)
+
+
+@pytest.mark.parametrize("form", ["alloy", "fs"])
+def test_write_eam_toml_roundtrip(tmp_path: Path, form: str) -> None:
+    data = EAMData(
+        potential_name="Cu",
+        form=form,
+        engine="numpy",
+        r_grid=np.array([0.0, 3.0, 6.0], dtype=float),
+        rho_grid=np.array([0.0, 5.0, 10.0], dtype=float),
+        phi_values=np.array([[[0.1, 0.2, 0.3]]], dtype=float),
+        rho_values=np.array([[[0.4, 0.5, 0.6]]], dtype=float),
+        emb_values=np.array([[0.7, 0.8, 0.9]], dtype=float),
+    )
+    data.species = np.array([29], dtype=np.int32)
+
+    out = tmp_path / "eam.toml"
+    write_potential(str(out), data)
+    loaded = read_potential(str(out))
+
+    assert isinstance(loaded, EAMData)
+    assert loaded.form == form
+    assert loaded.engine == "numpy"
+    np.testing.assert_allclose(loaded.r_grid, data.r_grid)
+    np.testing.assert_allclose(loaded.rho_grid, data.rho_grid)
+    np.testing.assert_allclose(loaded.phi_values, data.phi_values)
+    np.testing.assert_allclose(loaded.rho_values, data.rho_values)
+    np.testing.assert_allclose(loaded.emb_values, data.emb_values)
+    np.testing.assert_array_equal(loaded.species, data.species)
+
+
+def test_write_adp_toml_roundtrip(tmp_path: Path) -> None:
+    data = ADPData(
+        potential_name="Cu",
+        form="alloy",
+        engine="numba",
+        r_grid=np.array([0.0, 3.0, 6.0], dtype=float),
+        rho_grid=np.array([0.0, 5.0, 10.0], dtype=float),
+        phi_values=np.array([[[0.1, 0.2, 0.3]]], dtype=float),
+        rho_values=np.array([[[0.4, 0.5, 0.6]]], dtype=float),
+        emb_values=np.array([[0.7, 0.8, 0.9]], dtype=float),
+        dipole_values=np.array([[[0.01, 0.02, 0.03]]], dtype=float),
+        quadrupole_values=np.array([[[0.04, 0.05, 0.06]]], dtype=float),
+    )
+    data.species = np.array([29], dtype=np.int32)
+
+    out = tmp_path / "adp.toml"
+    write_potential(str(out), data)
+    loaded = read_potential(str(out))
+
+    assert isinstance(loaded, ADPData)
+    assert loaded.form == "alloy"
+    assert loaded.engine == "numba"
+    np.testing.assert_allclose(loaded.r_grid, data.r_grid)
+    np.testing.assert_allclose(loaded.rho_grid, data.rho_grid)
+    np.testing.assert_allclose(loaded.phi_values, data.phi_values)
+    np.testing.assert_allclose(loaded.rho_values, data.rho_values)
+    np.testing.assert_allclose(loaded.emb_values, data.emb_values)
+    np.testing.assert_allclose(loaded.dipole_values, data.dipole_values)
+    np.testing.assert_allclose(loaded.quadrupole_values, data.quadrupole_values)
+    np.testing.assert_array_equal(loaded.species, data.species)
 
 
 @pytest.mark.parametrize("engine", ["numpy", "numba"])

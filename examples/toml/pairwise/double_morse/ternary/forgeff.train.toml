@@ -1,6 +1,6 @@
 [common]
-seed = 42
-engine = "numpy"
+seed = 420
+engine = "numba"
 species = ["H", "C","O"]
 
 [configurations]
@@ -19,7 +19,7 @@ stress_weight = 0.0
 method = "minimize"
 
 [steps.kwargs]
-method = "L-BFGS-B"
+method = "Nelder-Mead"
 tol = 1.0e-6
 
 [steps.kwargs.options]

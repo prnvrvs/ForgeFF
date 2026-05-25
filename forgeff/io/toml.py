@@ -335,6 +335,244 @@ def _term_optimize_flag(term: dict[str, Any]) -> bool:
     return bool(term["optimize"])
 
 
+def _toml_quote(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _toml_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, np.integer)):
+        return str(int(value))
+    if isinstance(value, (float, np.floating)):
+        scalar = float(value)
+        if np.isnan(scalar) or np.isinf(scalar):
+            raise ValueError("TOML export does not support NaN or infinity values.")
+        return repr(scalar)
+    return _toml_quote(str(value))
+
+
+def _toml_array(values: Any) -> str:
+    if isinstance(values, np.ndarray):
+        items = values.reshape(-1).tolist()
+    elif isinstance(values, (list, tuple)):
+        items = list(values)
+    else:
+        items = [values]
+    return "[" + ", ".join(_toml_scalar(item) for item in items) + "]"
+
+
+def _toml_lines_for_key_value(key: str, value: Any) -> str:
+    if isinstance(value, (list, tuple, np.ndarray)):
+        return f"{key} = {_toml_array(value)}"
+    return f"{key} = {_toml_scalar(value)}"
+
+
+def _format_ase_analytical_toml(data: ASEData) -> str:
+    kwargs = dict(data.calculator_kwargs)
+    lines: list[str] = []
+
+    lines.append("[potential]")
+    lines.append('family = "analytical"')
+    if "form" in kwargs and kwargs["form"] is not None:
+        lines.append(_toml_lines_for_key_value("form", kwargs["form"]))
+    if "expression" in kwargs and kwargs["expression"] is not None and "form" not in kwargs:
+        lines.append(_toml_lines_for_key_value("expression", kwargs["expression"]))
+    if "parameter_names" in kwargs and kwargs["parameter_names"] and "form" not in kwargs:
+        lines.append(_toml_lines_for_key_value("parameter_names", kwargs["parameter_names"]))
+    if "engine" in kwargs and str(data.engine).lower() not in {"", "numpy"}:
+        lines.append(_toml_lines_for_key_value("engine", data.engine))
+    for key in ("cutoff", "rc", "cutoff_skin"):
+        if key in kwargs and kwargs[key] is not None:
+            lines.append(_toml_lines_for_key_value(key, kwargs[key]))
+            break
+
+    parameter_dict = {
+        name: np.asarray(value, dtype=float).reshape(-1)
+        for name, value in data.get_parameter_dict().items()
+    }
+
+    pair_terms = kwargs.get("pair_terms", [])
+    if not pair_terms:
+        lines.append(_toml_lines_for_key_value("initial", data.parameters))
+        return "\n".join(lines) + "\n"
+
+    species_numbers = kwargs.get("species")
+    if species_numbers:
+        labels = [chemical_symbols[int(number)] for number in species_numbers]
+        lines.append("")
+        lines.append("[species]")
+        lines.append(_toml_lines_for_key_value("order", labels))
+
+    shared_expression = kwargs.get("expression")
+    shared_form = kwargs.get("form")
+    shared_parameter_names = kwargs.get("parameter_names")
+    shared_cutoff = kwargs.get("cutoff")
+    shared_rc = kwargs.get("rc")
+
+    for term in pair_terms:
+        term = dict(term)
+        name = term.get("name")
+        if not name:
+            raise ValueError("ASE analytical pair term is missing a name.")
+
+        lines.append("")
+        lines.append(f"[pair.{name}]")
+
+        term_form = term.get("form")
+        if term_form is not None and str(term_form) != str(shared_form):
+            lines.append(_toml_lines_for_key_value("form", term_form))
+
+        term_expression = term.get("expression")
+        if term_expression is not None and str(term_expression) != str(shared_expression):
+            lines.append(_toml_lines_for_key_value("expression", term_expression))
+
+        term_parameter_names = _as_list(term.get("parameter_names", []))
+        if term_expression is not None and term_parameter_names:
+            lines.append(_toml_lines_for_key_value("parameter_names", term_parameter_names))
+        elif shared_expression is not None and shared_parameter_names:
+            lines.append(_toml_lines_for_key_value("parameter_names", shared_parameter_names))
+
+        variable = term.get("variable")
+        if variable is not None and variable != "r":
+            lines.append(_toml_lines_for_key_value("variable", variable))
+
+        for key in ("cutoff", "rc"):
+            value = term.get(key)
+            if value is not None and value != locals().get(f"shared_{key}"):
+                lines.append(_toml_lines_for_key_value(key, value))
+
+        if "optimize" in term and not bool(term["optimize"]):
+            lines.append("optimize = false")
+
+        param_names = term_parameter_names
+        if not param_names and shared_parameter_names:
+            param_names = _as_list(shared_parameter_names)
+        if not param_names:
+            spec_name = term_form or shared_form
+            if spec_name is None:
+                raise ValueError(f"Cannot determine parameter names for pair term {name!r}.")
+            param_names = list(get_form_spec(str(spec_name))["params"])
+
+        prefix = term.get("prefix")
+        if not prefix:
+            species = _as_list(term.get("species", []))
+            if len(species) == 2:
+                prefix = "".join(chemical_symbols[int(number)] for number in species)
+            else:
+                prefix = str(name).replace(".", "")
+
+        values: list[float] = []
+        for param_name in param_names:
+            scalar_name = f"{prefix}_{param_name}"
+            if scalar_name in parameter_dict:
+                value = float(parameter_dict[scalar_name][0])
+            elif scalar_name in kwargs:
+                value = float(np.asarray(kwargs[scalar_name], dtype=float).reshape(-1)[0])
+            else:
+                raise ValueError(f"Missing optimized value for parameter {scalar_name!r}.")
+            values.append(value)
+        lines.append(_toml_lines_for_key_value("initial", values))
+
+    return "\n".join(lines) + "\n"
+
+
+def _grid_to_toml_value(grid: np.ndarray) -> str:
+    arr = np.asarray(grid, dtype=float).reshape(-1)
+    if arr.size == 0:
+        raise ValueError("TOML export requires a non-empty grid.")
+    if arr.size == 1:
+        return _toml_array(arr)
+    deltas = np.diff(arr)
+    if np.allclose(deltas, deltas[0], rtol=1e-12, atol=1e-12):
+        return "{ start = %s, stop = %s, step = %s }" % (repr(float(arr[0])), repr(float(arr[-1])), repr(float(deltas[0])))
+    return _toml_array(arr)
+
+
+def _format_eam_like_toml(data: EAMData | ADPData) -> str:
+    if data.species_count <= 0:
+        raise ValueError("EAM/ADP TOML export requires a non-empty species list.")
+    if data.r_grid is None or data.rho_grid is None:
+        raise ValueError("EAM/ADP TOML export requires both r_grid and rho_grid.")
+    if data.phi_values is None or data.rho_values is None or data.emb_values is None:
+        raise ValueError("EAM/ADP TOML export requires phi, rho, and embedding arrays.")
+
+    labels = [chemical_symbols[int(number)] for number in np.asarray(data.species, dtype=int).tolist()]
+    lines: list[str] = []
+    family = "adp" if isinstance(data, ADPData) else "eam"
+
+    lines.append("[potential]")
+    lines.append(f'family = "{family}"')
+    lines.append(f'form = "{data.form}"')
+    if data.potential_name:
+        lines.append(_toml_lines_for_key_value("potential_name", data.potential_name))
+    if data.engine:
+        lines.append(_toml_lines_for_key_value("engine", data.engine))
+    lines.append(_toml_lines_for_key_value("cutoff", float(np.asarray(data.r_grid, dtype=float).reshape(-1)[-1])))
+
+    lines.append("")
+    lines.append("[species]")
+    lines.append(_toml_lines_for_key_value("order", labels))
+
+    lines.append("")
+    lines.append("[grids]")
+    lines.append(f"r = {_grid_to_toml_value(np.asarray(data.r_grid, dtype=float))}")
+    lines.append(f"rho = {_grid_to_toml_value(np.asarray(data.rho_grid, dtype=float))}")
+
+    spc = data.species_count
+    for i, left in enumerate(labels):
+        for j in range(i, spc):
+            right = labels[j]
+            lines.append("")
+            lines.append(f"[pair.{left}{right}]")
+            lines.append(_toml_lines_for_key_value("values", np.asarray(data.phi_values[i, j], dtype=float)))
+
+    if data.form == "fs":
+        for i, left in enumerate(labels):
+            for j, right in enumerate(labels):
+                lines.append("")
+                lines.append(f"[density.{left}{right}]")
+                lines.append(_toml_lines_for_key_value("values", np.asarray(data.rho_values[i, j], dtype=float)))
+    else:
+        for j, label in enumerate(labels):
+            lines.append("")
+            lines.append(f"[density.{label}]")
+            lines.append(_toml_lines_for_key_value("values", np.asarray(data.rho_values[0, j], dtype=float)))
+
+    for i, label in enumerate(labels):
+        lines.append("")
+        lines.append(f"[embedding.{label}]")
+        lines.append(_toml_lines_for_key_value("values", np.asarray(data.emb_values[i], dtype=float)))
+
+    if isinstance(data, ADPData):
+        for i, left in enumerate(labels):
+            for j in range(i, spc):
+                right = labels[j]
+                lines.append("")
+                lines.append(f"[dipole.{left}{right}]")
+                lines.append(_toml_lines_for_key_value("values", np.asarray(data.dipole_values[i, j], dtype=float)))
+        for i, left in enumerate(labels):
+            for j in range(i, spc):
+                right = labels[j]
+                lines.append("")
+                lines.append(f"[quadrupole.{left}{right}]")
+                lines.append(_toml_lines_for_key_value("values", np.asarray(data.quadrupole_values[i, j], dtype=float)))
+
+    return "\n".join(lines) + "\n"
+
+
+def write_potential_toml(filename: str | Path, data: ASEData | EAMData | ADPData) -> None:
+    """Write a potential checkpoint to TOML."""
+    if isinstance(data, ASEData):
+        Path(filename).write_text(_format_ase_analytical_toml(data), encoding="utf-8")
+        return
+    if isinstance(data, (EAMData, ADPData)):
+        Path(filename).write_text(_format_eam_like_toml(data), encoding="utf-8")
+        return
+    raise TypeError(f"Expected ASEData, EAMData, or ADPData, got {type(data).__name__}")
+
+
 def _read_custom_toml(data: dict[str, Any], potential: dict[str, Any]) -> ASEData:
     if "pair" in data and data["pair"]:
         return _read_multispecies_pair_toml(data, potential)

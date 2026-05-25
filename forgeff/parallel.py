@@ -8,6 +8,29 @@ if TYPE_CHECKING:
 
 import os
 
+
+def _launcher_world_size() -> int:
+    """Return the requested MPI world size from common launcher env vars."""
+    for key in (
+        "OMPI_COMM_WORLD_SIZE",
+        "PMI_SIZE",
+        "MV2_COMM_WORLD_SIZE",
+        "SLURM_NTASKS",
+        "MPI_SIZE",
+        "WORLD_SIZE",
+    ):
+        value = os.environ.get(key)
+        if value is None:
+            continue
+        try:
+            size = int(value)
+        except ValueError:
+            continue
+        if size > 0:
+            return size
+    return 1
+
+
 class DummyMPIComm:
     """Dummy MPI communicator.
 
@@ -69,6 +92,11 @@ def _get_world() -> MPI.Comm | DummyMPIComm:
     try:
         from mpi4py import MPI
     except ImportError:
+        if _launcher_world_size() > 1:
+            raise RuntimeError(
+                "MPI training was requested, but mpi4py is not installed. "
+                "Install mpi4py to use `mpirun`, or run ForgeFF without MPI."
+            )
         return DummyMPIComm()
     return MPI.COMM_WORLD
 

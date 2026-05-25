@@ -1,6 +1,7 @@
 [common]
 seed = 42
 engine = "numpy"
+species = ["Al", "Cu"]
 
 [configurations]
 training = ["../../../data/binary/training.cfg"]

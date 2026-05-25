@@ -9,7 +9,7 @@ import numpy as np
 from ase import Atoms
 from ase.io.formats import parse_filename
 
-from forgeff.io.toml import read_potential_toml
+from forgeff.io.toml import read_potential_toml, write_potential_toml
 from forgeff.io.lammps import read_lammps_tersoff_potential, write_lammps_potential
 from forgeff.io.potfit import read_force, write_force
 from forgeff.io.nist import read_nist_potential
@@ -163,6 +163,9 @@ def read_potential(filename: str, form: str | None = None):
 def write_potential(filename: str, data: Any) -> None:
     """Write a potential data object."""
     filename = os.fspath(filename)
+    if filename.endswith(".toml") and isinstance(data, (ASEData, EAMData, ADPData)):
+        write_potential_toml(filename, data)
+        return
     if filename.endswith(".npy") and hasattr(data, "write"):
         data.write(filename)
         return

@@ -1,6 +1,7 @@
 [common]
 seed = 42
 engine = "numpy"
+species = ["Al"]
 
 [configurations]
 training = ["../../../data/unary/training.cfg"]

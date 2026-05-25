@@ -102,7 +102,13 @@ def _resolve_species_energy_offsets(
     y_vals: list[float] = []
     label_to_index = {label: idx for idx, label in enumerate(labels)}
     for atoms in images:
-        if atoms.calc is None or "energy" not in getattr(atoms.calc, "targets", {}):
+        calc = atoms.calc
+        if calc is None:
+            continue
+        targets = getattr(calc, "targets", None) or {}
+        results = getattr(calc, "results", None) or {}
+        target_energy = targets.get("energy", results.get("energy"))
+        if target_energy is None:
             continue
         row = [0.0] * len(labels)
         for number in atoms.numbers.tolist():
@@ -113,7 +119,7 @@ def _resolve_species_energy_offsets(
                 )
             row[label_to_index[label]] += 1.0
         x_rows.append(row)
-        y_vals.append(float(atoms.calc.targets["energy"]))
+        y_vals.append(float(target_energy))
 
     if not x_rows:
         raise ValueError("Regression energy offsets require at least one structure with energy targets.")

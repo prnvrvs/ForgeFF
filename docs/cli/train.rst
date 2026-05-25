@@ -7,6 +7,10 @@ The trained potential is written in ``potentials.final``.
 After the fit, the command automatically prints a compact error summary for
 the trained potential on the same training dataset.
 
+For native ForgeFF families, ``potentials.final`` is typically ``final.npy``.
+For analytical ASE-backed fits, you can also set it to ``final.toml`` to write
+the fitted parameters back into a TOML potential file.
+
 Usage
 -----
 
