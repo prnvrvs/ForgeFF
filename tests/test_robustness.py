@@ -30,7 +30,7 @@ from forgeff.potentials.eam.numba.adp_engine import NumbaADPEngine
 from forgeff.optimizers.randomizer import Randomizer
 from forgeff.parallel import DummyMPIComm
 from forgeff.train.setting import _convert_steps
-from forgeff.train.trainer import Trainer
+from forgeff.train.trainer import Trainer, _validate_potential_species_order
 
 
 @pytest.mark.parametrize(
@@ -165,6 +165,11 @@ def test_convert_steps_preserves_kwargs_for_minimize_methods() -> None:
     assert steps[1]["method"] == "minimize"
     assert steps[1]["kwargs"]["method"] == "CG"
     assert steps[1]["kwargs"]["maxiter"] == 3
+
+
+def test_species_order_mismatch_is_rejected_before_training() -> None:
+    with pytest.raises(ValueError, match="Training species order does not match"):
+        _validate_potential_species_order(["C", "H", "O"], ["Al", "Cu"])
 
 
 def test_update_mindist_ignores_diagonal_self_distances() -> None:

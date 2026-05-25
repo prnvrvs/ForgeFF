@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from ase import Atoms
+from ase.data import chemical_symbols
 
 from forgeff.io import read_potential, write_potential
 from forgeff.io.utils import get_dummy_species, read_images
@@ -21,6 +22,37 @@ if TYPE_CHECKING:
     from forgeff.optimizers.base import OptimizerBase
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_species_label(value: Any) -> str:
+    if isinstance(value, (int, np.integer)):
+        return str(chemical_symbols[int(value)])
+    return str(value)
+
+
+def _species_labels(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (str, int, np.integer)):
+        return [_normalize_species_label(value)]
+    try:
+        items = list(value)
+    except TypeError:
+        return [_normalize_species_label(value)]
+    return [_normalize_species_label(item) for item in items]
+
+
+def _validate_potential_species_order(training_species: list[Any], potential_species: Any) -> None:
+    training_labels = [_normalize_species_label(item) for item in training_species]
+    potential_labels = _species_labels(potential_species)
+    if not potential_labels:
+        return
+    if training_labels != potential_labels:
+        raise ValueError(
+            "Training species order does not match the initial potential species order. "
+            f"Training species = {training_labels!r}, initial potential species = {potential_labels!r}. "
+            "Update the initial TOML or the training species list so they match exactly."
+        )
 
 
 class Trainer:
@@ -176,6 +208,10 @@ def train_from_setting(filename_setting: str, comm: DummyMPIComm) -> LossFunctio
         species = get_dummy_species(images)
 
     pot_data = read_potential(untrained_potential)
+    potential_species = getattr(pot_data, "species", None)
+    if not _species_labels(potential_species) and hasattr(pot_data, "calculator_kwargs"):
+        potential_species = getattr(pot_data, "calculator_kwargs", {}).get("species")
+    _validate_potential_species_order(species, potential_species)
     pot_data.species = species
     if hasattr(pot_data, "engine"):
         pot_data.engine = setting.common.engine
