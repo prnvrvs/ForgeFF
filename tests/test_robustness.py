@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from types import SimpleNamespace
 
 import numpy as np
 from ase import Atoms
 import pytest
 
+import forgeff.calculator as calculator_module
 from forgeff.calculator import make_calculator
 from forgeff.energy_offsets import apply_species_energy_offsets
 from forgeff.io import read_potential
@@ -28,6 +31,45 @@ from forgeff.optimizers.randomizer import Randomizer
 from forgeff.parallel import DummyMPIComm
 from forgeff.train.setting import _convert_steps
 from forgeff.train.trainer import Trainer
+
+
+@pytest.mark.parametrize(
+    "factory_name",
+    ["make_eam_engine", "make_adp_engine", "make_tersoff_engine", "make_sw_engine"],
+)
+def test_numba_factories_fail_cleanly_when_numba_is_missing(monkeypatch, factory_name: str) -> None:
+    original_import_module = importlib.import_module
+
+    def _missing_numba(module_path: str):
+        if "numba" in module_path:
+            raise ModuleNotFoundError("No module named 'numba'")
+        return original_import_module(module_path)
+
+    monkeypatch.setattr(importlib, "import_module", _missing_numba)
+    factory = getattr(calculator_module, factory_name)
+
+    with pytest.raises(RuntimeError, match="no numba"):
+        factory("numba")
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "forgeff.potentials.ase.numba_pair",
+        "forgeff.potentials.eam.numba.eam_engine",
+        "forgeff.potentials.eam.numba.adp_engine",
+        "forgeff.potentials.sw.numba",
+        "forgeff.potentials.tersoff.numba",
+    ],
+)
+def test_direct_numba_module_imports_fail_cleanly_when_numba_is_missing(
+    monkeypatch, module_name: str
+) -> None:
+    monkeypatch.setitem(sys.modules, "numba", None)
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    with pytest.raises(RuntimeError, match="no numba"):
+        importlib.import_module(module_name)
 
 
 def test_empty_atoms_stress_loss_skips_non_3d_cells() -> None:
@@ -146,6 +188,22 @@ def test_species_energy_offsets_preserve_free_energy_when_present() -> None:
     assert adjusted["energy"] == pytest.approx(5.0)
     assert adjusted["free_energy"] == pytest.approx(5.5)
     np.testing.assert_allclose(adjusted["energies"], np.array([2.4, 2.6]))
+
+
+def test_species_energy_offset_regression_uses_ase_results_energy() -> None:
+    images = []
+    for symbols, energy in [("CH4", -10.0), ("C2H6O", -20.0)]:
+        atoms = Atoms(symbols, positions=np.zeros((len(Atoms(symbols)), 3)))
+        atoms.calc = SimpleNamespace(results={"energy": energy})
+        images.append(atoms)
+
+    pot_data = SimpleNamespace(species=["C", "H", "O"], species_energy_offsets={})
+    setting = LossSetting(species_energy_offset_mode="regression")
+
+    offsets = _resolve_species_energy_offsets(images, pot_data, setting)
+
+    assert set(offsets) == {"C", "H", "O"}
+    assert all(np.isfinite(list(offsets.values())))
 
 
 def test_randomizer_uses_seed_and_attribute_access() -> None:

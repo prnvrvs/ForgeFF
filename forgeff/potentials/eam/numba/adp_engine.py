@@ -1,6 +1,9 @@
 """JIT-backed ADP calculator for forgeff."""
 
-import numba
+try:
+    import numba
+except ModuleNotFoundError as exc:
+    raise RuntimeError("no numba") from exc
 import numpy as np
 from types import SimpleNamespace
 from scipy.interpolate import CubicSpline

@@ -7,7 +7,10 @@ from pathlib import Path
 import os
 from types import SimpleNamespace
 
-import numba
+try:
+    import numba
+except ModuleNotFoundError as exc:
+    raise RuntimeError("no numba") from exc
 import numpy as np
 from scipy.interpolate import CubicSpline
 

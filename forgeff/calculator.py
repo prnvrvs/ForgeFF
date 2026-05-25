@@ -51,7 +51,11 @@ def make_eam_engine(
     if engine not in _EAM_ENGINES:
         raise ValueError(f"Unknown EAM engine {engine!r}. Supported: {sorted(_EAM_ENGINES)}")
     module_path, _, class_name = _EAM_ENGINES[engine].rpartition(".")
-    return getattr(importlib.import_module(module_path), class_name)
+    try:
+        module = importlib.import_module(module_path)
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("no numba") from exc
+    return getattr(module, class_name)
 
 
 def make_adp_engine(
@@ -63,7 +67,11 @@ def make_adp_engine(
     if engine not in _ADP_ENGINES:
         raise ValueError(f"Unknown ADP engine {engine!r}. Supported: {sorted(_ADP_ENGINES)}")
     module_path, _, class_name = _ADP_ENGINES[engine].rpartition(".")
-    return getattr(importlib.import_module(module_path), class_name)
+    try:
+        module = importlib.import_module(module_path)
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("no numba") from exc
+    return getattr(module, class_name)
 
 
 def make_tersoff_engine(
@@ -75,7 +83,11 @@ def make_tersoff_engine(
     if engine not in _TERSOFF_ENGINES:
         raise ValueError(f"Unknown Tersoff engine {engine!r}. Supported: {sorted(_TERSOFF_ENGINES)}")
     module_path, _, class_name = _TERSOFF_ENGINES[engine].rpartition(".")
-    return getattr(importlib.import_module(module_path), class_name)
+    try:
+        module = importlib.import_module(module_path)
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("no numba") from exc
+    return getattr(module, class_name)
 
 
 def make_sw_engine(
@@ -87,7 +99,11 @@ def make_sw_engine(
     if engine not in _SW_ENGINES:
         raise ValueError(f"Unknown SW engine {engine!r}. Supported: {sorted(_SW_ENGINES)}")
     module_path, _, class_name = _SW_ENGINES[engine].rpartition(".")
-    return getattr(importlib.import_module(module_path), class_name)
+    try:
+        module = importlib.import_module(module_path)
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("no numba") from exc
+    return getattr(module, class_name)
 
 
 def make_calculator(

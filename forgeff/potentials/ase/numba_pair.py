@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import numba
+try:
+    import numba
+except ModuleNotFoundError as exc:
+    raise RuntimeError("no numba") from exc
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.data import atomic_numbers

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import numba
+try:
+    import numba
+except ModuleNotFoundError as exc:
+    raise RuntimeError("no numba") from exc
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
