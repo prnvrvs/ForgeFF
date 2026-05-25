@@ -1,6 +1,7 @@
 [common]
 seed = 42
 engine = "numba"
+species = ["Al", "Cu"]
 
 [configurations]
 training = ["../../data/binary/training.cfg"]
