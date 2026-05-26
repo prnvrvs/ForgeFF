@@ -21,6 +21,9 @@ from forgeff.loss import LossSetting
 from forgeff.loss import _resolve_species_energy_offsets
 from forgeff.potentials.ase.data import ASEData
 from forgeff.potentials.ase.engine import GenericASEEngine
+from forgeff.potentials.ase.custom import CustomPairPotential
+from forgeff.potentials.ase.numba_pair import NumbaPairPotential
+import forgeff.potentials.ase.neighbor_cache as neighbor_cache_module
 from forgeff.potentials.sw.data import SWData
 from forgeff.potentials.sw.numpy import NumpySWEngine
 from forgeff.potentials.sw.numba import NumbaSWEngine
@@ -212,6 +215,65 @@ def test_loss_only_updates_local_images_on_each_mpi_rank() -> None:
 
     update_counts = [atoms.calc.update_count for atoms in loss.images]
     assert update_counts == [0, 1, 0, 1]
+
+
+@pytest.mark.parametrize(
+    "engine_factory, kwargs",
+    [
+        (
+            CustomPairPotential,
+            {
+                "expression": "de * (exp(-2*a*(r-re)) - 2*exp(-a*(r-re)))",
+                "parameter_names": ["de", "a", "re"],
+                "de": 1.0,
+                "a": 1.0,
+                "re": 1.0,
+                "cutoff": 5.0,
+            },
+        ),
+        (
+            NumbaPairPotential,
+            {
+                "form": "morse",
+                "De": 1.0,
+                "a": 1.0,
+                "re": 1.0,
+                "cutoff": 5.0,
+            },
+        ),
+    ],
+)
+def test_pair_engines_cache_neighbor_lists_for_repeated_calls(
+    monkeypatch,
+    engine_factory,
+    kwargs,
+) -> None:
+    call_count = {"value": 0}
+    original_neighbor_list = neighbor_cache_module.neighbor_list
+
+    def _counting_neighbor_list(*args, **kwargs):
+        call_count["value"] += 1
+        return original_neighbor_list(*args, **kwargs)
+
+    monkeypatch.setattr(neighbor_cache_module, "neighbor_list", _counting_neighbor_list)
+
+    atoms = Atoms(
+        "Al2",
+        positions=[[0.0, 0.0, 0.0], [0.8, 0.0, 0.0]],
+        cell=[5.0, 5.0, 5.0],
+        pbc=True,
+    )
+    atoms.calc = engine_factory(**kwargs)
+
+    atoms.get_potential_energy()
+    assert call_count["value"] == 1
+
+    atoms.get_potential_energy()
+    assert call_count["value"] == 1
+
+    atoms.positions[1, 0] += 0.1
+    atoms.get_potential_energy()
+    assert call_count["value"] == 2
 
 
 def test_parse_value_accepts_scientific_and_signed_floats() -> None:

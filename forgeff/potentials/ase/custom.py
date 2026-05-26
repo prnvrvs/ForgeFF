@@ -8,12 +8,12 @@ from typing import Any
 
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from ase.neighborlist import neighbor_list
 from ase.stress import full_3x3_to_voigt_6_stress
 from ase.data import atomic_numbers
 from sympy import Symbol, diff, lambdify, sympify
 
 from forgeff.potentials.ase.forms import evaluate_form, get_form_spec
+from forgeff.potentials.ase.neighbor_cache import NeighborCache
 
 
 _RESERVED_KEYS = {
@@ -64,6 +64,7 @@ class CustomPairPotential(Calculator):
         self.pair_terms = pair_terms
         self.species = species
         self.cutoff = cutoff if cutoff is not None else rc
+        self._neighbor_cache = NeighborCache()
         if self.cutoff is None:
             raise ValueError("CustomPairPotential requires a finite 'cutoff' (or 'rc').")
 
@@ -140,14 +141,13 @@ class CustomPairPotential(Calculator):
         local = np.zeros(natoms, dtype=float)
 
         numbers = self.atoms.get_atomic_numbers().astype(np.int32)
-        i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
+        i_list, j_list, _, dist, vec = self._neighbor_cache.get(self.atoms, float(self.cutoff))
         if len(i_list):
             unique = i_list < j_list
             i_list = i_list[unique]
             j_list = j_list[unique]
-            shifts = shifts[unique]
             dist = dist[unique]
-            vec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
+            vec = vec[unique]
             for idx in range(len(i_list)):
                 r = float(dist[idx])
                 if r <= 0.0:
@@ -221,14 +221,13 @@ class CustomPairPotential(Calculator):
         forces = np.zeros((natoms, 3), dtype=float)
         virial = np.zeros((3, 3), dtype=float)
 
-        i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
+        i_list, j_list, _, dist, vec = self._neighbor_cache.get(self.atoms, float(self.cutoff))
         if len(i_list):
             unique = i_list < j_list
             i_list = i_list[unique]
             j_list = j_list[unique]
-            shifts = shifts[unique]
             dist = dist[unique]
-            vec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
+            vec = vec[unique]
             args = (np.asarray(dist, dtype=float), *self._parameter_values)
             pair_energy = np.asarray(self._compiled.energy(*args), dtype=float)
             d_v_dr = np.asarray(self._compiled.derivative(*args), dtype=float)

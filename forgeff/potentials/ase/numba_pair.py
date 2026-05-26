@@ -11,10 +11,10 @@ except ModuleNotFoundError as exc:
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.data import atomic_numbers
-from ase.neighborlist import neighbor_list
 from ase.stress import full_3x3_to_voigt_6_stress
 
 from forgeff.potentials.ase.forms import get_form_spec
+from forgeff.potentials.ase.neighbor_cache import NeighborCache
 
 
 PAIR_FORM_IDS = {
@@ -387,6 +387,7 @@ class NumbaPairPotential(Calculator):
 
         self.form_id = PAIR_FORM_IDS[self.form]
         self.cutoff = cutoff if cutoff is not None else rc
+        self._neighbor_cache = NeighborCache()
         if self.cutoff is None:
             raise ValueError("NumbaPairPotential requires a finite 'cutoff' (or 'rc').")
 
@@ -434,14 +435,13 @@ class NumbaPairPotential(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         natoms = len(self.atoms)
-        i_list, j_list, shifts, dist = neighbor_list("ijSd", self.atoms, float(self.cutoff))
+        i_list, j_list, _, dist, rvec = self._neighbor_cache.get(self.atoms, float(self.cutoff))
         if len(i_list):
             unique = i_list < j_list
             i_list = i_list[unique]
             j_list = j_list[unique]
-            shifts = shifts[unique]
             dist = dist[unique]
-            rvec = self.atoms.positions[j_list] + shifts @ self.atoms.cell.array - self.atoms.positions[i_list]
+            rvec = rvec[unique]
             if self.multispecies:
                 types = self.atoms.get_atomic_numbers().astype(np.int64)
                 energy, local, forces, virial = _calculate_pair_multispecies(
