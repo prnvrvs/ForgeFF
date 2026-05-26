@@ -1,16 +1,35 @@
 Release Notes
 =============
 
-This page summarizes the launch-facing changes currently in ForgeFF.
+v1.1.6
+------
 
-Latest updates
---------------
+This release tightens the public template workflow and keeps the launch-facing
+docs aligned with the CLI.
 
-- LAMMPS EAM and ADP export now forwards header metadata into the body writer and resamples tabulated data with explicit endpoint slopes.
-- The EAM and ADP small-cell self-image handling has been fixed so total energy and site-energy bookkeeping stay consistent with ASE.
-- SW export and calculator edge cases for empty structures and similar robustness issues have been cleaned up.
-- Loss, optimizer, and parser edge cases were fixed so mixed datasets, Jacobians, and configuration parsing behave predictably.
-- The performance plots and benchmark styling have been refreshed for a cleaner presentation.
+Highlights
+~~~~~~~~~~
+
+- ``ForgeFF -t`` is now the single public template entry point.
+- The wizard now asks for species labels when a dataset format does not expose
+  them, and it works with both MLIP ``.cfg`` and potfit force inputs.
+- The docs now route users more clearly between TOML examples, Python
+  walkthroughs, and the template wizard.
+- A non-EAM pairwise Python walkthrough was added so the gallery is not
+  EAM-only.
+
+Previous robustness and export updates remain in place:
+
+- LAMMPS EAM and ADP export now forwards header metadata into the body writer
+  and resamples tabulated data with explicit endpoint slopes.
+- The EAM and ADP small-cell self-image handling has been fixed so total
+  energy and site-energy bookkeeping stay consistent with ASE.
+- SW export and calculator edge cases for empty structures and similar
+  robustness issues have been cleaned up.
+- Loss, optimizer, and parser edge cases were fixed so mixed datasets,
+  Jacobians, and configuration parsing behave predictably.
+- The performance plots and benchmark styling have been refreshed for a
+  cleaner presentation.
 
 Export notes
 ------------
