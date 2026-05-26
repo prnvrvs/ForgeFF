@@ -62,7 +62,7 @@ interface. The docs now cover:
 - pairwise, EAM, ADP, and analytical example families
 - the public engine choices and their dark-mode documentation styling
 - CLI commands such as ``forgeff train``, ``forgeff evaluate``, ``forgeff grade``,
-  ``forgeff error``, ``forgeff export``, and ``forgeff template``
+  ``forgeff error``, ``forgeff export``, and ``forgeff -t``
 - the maintainer and credit pages with current project links
 
 ForgeFF follows that style and credits that design lineage. If you are looking

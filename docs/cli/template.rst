@@ -1,26 +1,22 @@
-``forgeff template``
-====================
+Template wizard
+===============
 
-The ``forgeff template`` command writes a starter TOML file for one of the
-supported potential families. It is meant as a quick way to bootstrap a new
-``initial.toml`` for the examples and your own fits.
+The ``forgeff -t`` wizard writes a starter TOML file for one of the supported
+potential families. It is meant as a quick way to bootstrap a new
+``initial.toml`` and matching ``forgeff.train.toml`` for the examples and
+your own fits.
 
 Usage
 -----
 
 .. code-block:: bash
 
-   forgeff template analytical --species Al Cu --form morse
-   forgeff template eam --species Al Cu --form alloy
-   forgeff template sw --species Si
-   forgeff template tersoff --species Si C
+   forgeff -t
 
-The command prints the template to stdout unless ``--output`` is given:
+The wizard prompts for the dataset, species, family, and training options.
+For fully scripted output, the internal template helpers still power the
+documentation examples and tests, but the public entry point is the wizard.
 
-.. code-block:: bash
-
-   forgeff template sw --species Al Cu --output initial.toml
-
-The generated file is only the potential definition. The matching
-``forgeff.train.toml`` still lives in the training settings workflow and keeps
-``[common].engine`` separate from the potential description.
+The generated files are the potential definition and the matching training
+setting. ``forgeff.train.toml`` keeps ``[common].engine`` separate from the
+potential description.

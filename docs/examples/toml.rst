@@ -49,13 +49,16 @@ Each case below is shown as:
 Quick start
 -----------
 
-To run a real training example from TOML, use the command-line launcher:
+To run a real training example from TOML, use the installed CLI:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/eam/alloy/forgeff.train.toml
+   forgeff train examples/toml/eam/alloy/forgeff.train.toml
 
 You can swap the setting file for any of the folders listed below.
+
+If you are working from a fresh repository checkout and want the local helper
+script, ``python examples/toml/train.py --setting ...`` behaves the same.
 
 If you are starting out, use the unary alloy example first, then try the
 binary alloy or Finnis-Sinclair cases to see how the same workflow changes
@@ -146,7 +149,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/morse/binary_frozen/forgeff.train.toml
+   forgeff train examples/toml/pairwise/morse/binary_frozen/forgeff.train.toml
 
 This example keeps ``pair.AlAl`` fixed and trains the new binary pair terms.
 
@@ -167,7 +170,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/morse/unary/forgeff.train.toml
+   forgeff train examples/toml/pairwise/morse/unary/forgeff.train.toml
 
 Output:
 
@@ -203,7 +206,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/double_morse/unary/forgeff.train.toml
+   forgeff train examples/toml/pairwise/double_morse/unary/forgeff.train.toml
 
 Output:
 
@@ -239,7 +242,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/pairwise/custom_expression/unary/forgeff.train.toml
+   forgeff train examples/toml/pairwise/custom_expression/unary/forgeff.train.toml
 
 Output:
 
@@ -291,7 +294,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/eam/alloy/forgeff.train.toml
+   forgeff train examples/toml/eam/alloy/forgeff.train.toml
 
 Output:
 
@@ -331,7 +334,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/eam/alloy_binary/forgeff.train.toml
+   forgeff train examples/toml/eam/alloy_binary/forgeff.train.toml
 
 Output:
 
@@ -367,7 +370,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/eam/fs_unary/forgeff.train.toml
+   forgeff train examples/toml/eam/fs_unary/forgeff.train.toml
 
 Output:
 
@@ -403,7 +406,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/eam/fs/forgeff.train.toml
+   forgeff train examples/toml/eam/fs/forgeff.train.toml
 
 Output:
 
@@ -448,7 +451,7 @@ Run:
 
 .. code-block:: bash
 
-   python examples/toml/train.py --setting examples/toml/adp/alcu/forgeff.train.toml
+   forgeff train examples/toml/adp/alcu/forgeff.train.toml
 
 Output:
 

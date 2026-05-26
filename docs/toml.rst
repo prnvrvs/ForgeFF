@@ -15,33 +15,23 @@ worked examples, see:
 - :doc:`examples/toml`
 - :doc:`example`
 
-If you want a starter file, ``forgeff template`` can generate a valid TOML
+If you want a starter file, ``forgeff -t`` can generate a valid TOML
 template for analytical, EAM, ADP, Stillinger-Weber, or Tersoff potentials.
 
 Template generation
 -------------------
 
-The template command keeps the potential file small and readable while giving
-you a valid starting point for each family:
+The wizard keeps the potential file small and readable while giving you a
+valid starting point for each family. It asks for the dataset, the species
+order, the model family, and the training settings, then writes the matching
+``initial.toml`` and ``forgeff.train.toml`` files:
 
 .. code-block:: bash
 
-   forgeff template analytical --species Al Cu --form morse
-   forgeff template eam --species Fe Ni --form alloy
-   forgeff template adp --species Al Cu
-   forgeff template sw --species Si
-   forgeff template tersoff --species Si C
+   forgeff -t
 
-Use ``--output`` when you want the template written to a file instead of
-printed to the terminal:
-
-.. code-block:: bash
-
-   forgeff template analytical --species Al Cu --form morse --output initial.toml
-
-The generated file is only the potential definition. The matching
-``forgeff.train.toml`` still carries ``[common].engine`` and the rest of the
-runtime settings.
+If the output files already exist, the wizard asks before overwriting them.
+Press Enter to keep the existing file and move on.
 
 If you need a LAMMPS-compatible output file for EAM or ADP, see
 :doc:`cli/export`. That page covers the supported formats and command-line
