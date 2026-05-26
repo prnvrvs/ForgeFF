@@ -541,14 +541,17 @@ class LossFunctionBase(ABC):
             comm=self.comm,
         )
 
+    def _local_image_indices(self) -> range:
+        """Return the images owned by this MPI rank."""
+        return range(self.comm.rank, len(self.images), self.comm.size)
+
     @abstractmethod
     def __call__(self, parameters: npt.NDArray[np.float64]) -> np.float64:
         """Evaluate the loss function."""
 
     def _run_calculations(self) -> None:
         """Run calculations of the properties."""
-        ncnf = len(self.images)
-        for i in range(self.comm.rank, ncnf, self.comm.size):
+        for i in self._local_image_indices():
             self.images[i].get_potential_energy()
 
     def broadcast_results(self) -> None:
@@ -586,7 +589,8 @@ class LossFunctionBase(ABC):
         if parameters is None:
             return
         self.pot_data.parameters = parameters
-        for atoms in self.images:
+        for i in self._local_image_indices():
+            atoms = self.images[i]
             atoms.calc.update_parameters(self.pot_data)
 
     def calc_loss_function(self) -> float:

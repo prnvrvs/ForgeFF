@@ -16,7 +16,7 @@ from forgeff.io import read_potential
 from forgeff.io import write_potential
 from forgeff.io.mlip.cfg import _convert_species, _parse_value
 from forgeff.io.potfit import write_force
-from forgeff.loss import ErrorPrinter, LossFunction, LossFunctionStress
+from forgeff.loss import ErrorPrinter, LossFunction, LossFunctionBase, LossFunctionStress
 from forgeff.loss import LossSetting
 from forgeff.loss import _resolve_species_energy_offsets
 from forgeff.potentials.ase.data import ASEData
@@ -161,6 +161,57 @@ def test_loss_jac_updates_parameters_before_differentiating() -> None:
 
     np.testing.assert_allclose(loss.pot_data.parameters, np.array([2.0]))
     np.testing.assert_allclose(jac, np.array([4.0]), rtol=1e-8, atol=1e-8)
+
+
+def test_loss_only_updates_local_images_on_each_mpi_rank() -> None:
+    class _Comm:
+        rank = 1
+        size = 2
+
+        def bcast(self, obj, root=0):
+            return obj
+
+        def allreduce(self, obj, op=None):
+            return obj
+
+        def Allreduce(self, sendobj, recvobj=None, op=None):
+            if recvobj is not None:
+                recvobj[...] = sendobj[...]
+
+    class _Calc:
+        def __init__(self) -> None:
+            self.results = {
+                "energy": 0.0,
+                "forces": np.zeros((1, 3), dtype=float),
+                "stress": np.zeros(6, dtype=float),
+            }
+            self.targets = {
+                "energy": 0.0,
+                "forces": np.zeros((1, 3), dtype=float),
+                "stress": np.zeros(6, dtype=float),
+            }
+            self.update_count = 0
+
+        def update_parameters(self, pot_data) -> None:
+            self.update_count += 1
+
+    class _Loss(LossFunctionBase):
+        def __call__(self, parameters):
+            self._set_parameters(parameters)
+            return 0.0
+
+    pot_data = SimpleNamespace(parameters=np.array([0.0]), number_of_parameters_optimized=1)
+    images = []
+    for _ in range(4):
+        atoms = Atoms("Al", positions=[[0.0, 0.0, 0.0]], cell=[1.0, 1.0, 1.0], pbc=True)
+        atoms.calc = _Calc()
+        images.append(atoms)
+
+    loss = _Loss(images, pot_data, LossSetting(), comm=_Comm())
+    loss._set_parameters(np.array([2.0]))
+
+    update_counts = [atoms.calc.update_count for atoms in loss.images]
+    assert update_counts == [0, 1, 0, 1]
 
 
 def test_parse_value_accepts_scientific_and_signed_floats() -> None:
